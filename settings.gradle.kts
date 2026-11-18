@@ -1,3 +1,5 @@
+@file:Suppress("UnstableApiUsage")
+
 pluginManagement {
     includeBuild("build-logic")
     repositories {
@@ -18,3 +20,5 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "maker-checker"
+
+include("platform:account-service")

@@ -6,4 +6,16 @@ The system under test: an instant-payments platform on a double-entry ledger.
 - Its services carry their own unit and component tests.
 - It knows nothing about `automation/`.
 
-Nothing lives here yet. The first endpoint arrives in phase 1 of the [roadmap](../docs/roadmap.md).
+## Services
+
+| Service | Contract |
+|---|---|
+| [`account-service`](account-service) | [openapi.yaml](../contracts/account-service/openapi.yaml) |
+
+## Run a service
+
+```
+./gradlew :platform:account-service:bootRun
+```
+
+The service listens on port 8080. Open `http://localhost:8080/v1/status` to see its name and version.

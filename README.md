@@ -8,7 +8,7 @@ In banking, maker-checker is the control where one party makes a change and a se
 
 ## Status
 
-Phase 0: foundations. The repository has its build, its CI and its first decisions. The platform and the framework arrive in the next phases. See the [roadmap](docs/roadmap.md).
+Phase 1: walking skeleton, in progress. The first service, `account-service`, answers `GET /v1/status`. The container image, the first Playwright test and the published report come next. See the [roadmap](docs/roadmap.md).
 
 ## What it will show
 
@@ -52,6 +52,10 @@ On Windows, run `gradlew.bat build`. To fix formatting, run the `spotlessApply` 
 ## Decisions
 
 Every decision that is costly to reverse is recorded in [docs/adr](docs/adr/README.md).
+
+## How this is built
+
+This repository is built with AI assistance. I set the direction and make the decisions. Claude, an AI assistant, drafts much of the code and documentation. I review and build every change before it reaches `main`.
 
 ## License
 
