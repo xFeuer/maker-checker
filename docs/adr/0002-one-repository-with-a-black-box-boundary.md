@@ -20,7 +20,7 @@ Keep everything in one repository, with a hard boundary inside it.
 ## Options considered
 
 - **One repository with a hard boundary.** Chosen.
-- **One repository per service, plus one for the automation.** It mirrors how many organisations work. It also adds contract versioning and cross-repository pipelines that say nothing about framework design.
+- **One repository per service, plus one for the automation.** It mirrors how many organizations work. It also adds contract versioning and cross-repository pipelines that say nothing about framework design.
 - **One repository without a boundary.** The simplest to build. Tests could then reach into service internals, and nothing would show that the framework is black-box.
 
 ## Consequences

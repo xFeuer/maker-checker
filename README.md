@@ -52,3 +52,7 @@ On Windows, run `gradlew.bat build`. To fix formatting, run the `spotlessApply` 
 ## Decisions
 
 Every decision that is costly to reverse is recorded in [docs/adr](docs/adr/README.md).
+
+## License
+
+[MIT](LICENSE)

@@ -17,6 +17,7 @@ spotless {
             ".editorconfig",
             ".gitattributes",
             ".gitignore",
+            "LICENSE",
             ".github/**/*.md",
             ".github/**/*.yml",
             "automation/*.md",

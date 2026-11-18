@@ -5,7 +5,7 @@
 
 ## Context
 
-The suites need a test engine. Engineers want code-first tests with extensions, parameterisation and parallel execution. Financial institutions often expect business-readable scenarios as well.
+The suites need a test engine. Engineers want code-first tests with extensions, parameterization and parallel execution. Financial institutions often expect business-readable scenarios as well.
 
 ## Decision
 
