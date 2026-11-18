@@ -1,5 +1,13 @@
+pluginManagement {
+    repositories {
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
 dependencyResolutionManagement {
     repositories {
+        mavenCentral()
         gradlePluginPortal()
     }
     versionCatalogs {
