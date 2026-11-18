@@ -1,0 +1,57 @@
+openapi: 3.1.1
+
+info:
+  title: account-service
+  summary: Accounts and ledger of the maker-checker platform.
+  version: 0.1.0
+  license:
+    name: MIT
+    identifier: MIT
+
+tags:
+  - name: Status
+    description: Whether the service is up and which build it runs.
+
+paths:
+  /v1/status:
+    get:
+      operationId: getStatus
+      summary: Report the service name and version.
+      description: >-
+        The smoke-test target. A successful response proves that the service
+        is up and speaks this contract.
+      tags:
+        - Status
+      responses:
+        "200":
+          description: The service is up.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServiceStatus"
+              examples:
+                up:
+                  summary: A running service
+                  value:
+                    service: account-service
+                    version: 0.1.0
+
+components:
+  schemas:
+    ServiceStatus:
+      type: object
+      description: Identity of a running service.
+      required:
+        - service
+        - version
+      properties:
+        service:
+          type: string
+          description: Name of the service.
+          examples:
+            - account-service
+        version:
+          type: string
+          description: Version of the running build.
+          examples:
+            - 0.1.0

@@ -6,4 +6,8 @@ The OpenAPI specifications of the platform's APIs.
 - `platform/` implements them.
 - `automation/` tests against them.
 
-Nothing lives here yet. The first specification arrives in phase 1 of the [roadmap](../docs/roadmap.md).
+Each service has its own directory: `contracts/<service>/openapi.yaml`.
+
+| Service | Specification |
+|---|---|
+| `account-service` | [openapi.yaml](account-service/openapi.yaml) |

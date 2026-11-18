@@ -22,6 +22,7 @@ spotless {
             ".github/**/*.yml",
             "automation/*.md",
             "contracts/*.md",
+            "contracts/**/*.yaml",
             "deploy/*.md",
             "docs/**/*.md",
             "gradle/*.toml",
