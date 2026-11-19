@@ -21,4 +21,7 @@ dependencyResolutionManagement {
 
 rootProject.name = "maker-checker"
 
+include("automation:api")
+include("automation:core")
+include("automation:suites")
 include("platform:account-service")

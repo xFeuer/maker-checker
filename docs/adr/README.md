@@ -20,3 +20,4 @@ An accepted ADR is not edited to change its decision. A new ADR supersedes it.
 | [0003](0003-java-and-spring-boot-for-the-platform.md) | Java and Spring Boot for the platform | Accepted |
 | [0004](0004-playwright-for-java-on-the-api-and-ui-layers.md) | Playwright for Java on the API and UI layers | Accepted |
 | [0005](0005-junit-platform-with-cucumber-on-top.md) | JUnit Platform with Cucumber on top | Accepted |
+| [0006](0006-a-playwright-lifecycle-owned-by-the-framework.md) | A Playwright lifecycle owned by the framework | Accepted |
