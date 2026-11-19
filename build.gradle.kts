@@ -24,6 +24,7 @@ spotless {
             "contracts/*.md",
             "contracts/**/*.yaml",
             "deploy/*.md",
+            "deploy/*.yaml",
             "docs/**/*.md",
             "gradle/*.toml",
             "platform/*.md",

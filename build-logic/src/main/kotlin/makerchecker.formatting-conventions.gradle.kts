@@ -14,6 +14,8 @@ spotless {
             "*.toml",
             "*.yaml",
             "*.yml",
+            ".dockerignore",
+            "Dockerfile",
         )
         trimTrailingWhitespace()
         endWithNewline()
