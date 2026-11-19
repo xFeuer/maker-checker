@@ -1,0 +1,17 @@
+name: maker-checker
+
+services:
+  account-service:
+    build:
+      context: ../platform/account-service
+    ports:
+      # Loopback only: the stack is for tests on this machine.
+      - "127.0.0.1:8080:8080"
+    healthcheck:
+      # BusyBox wget, quiet, with the body discarded. It exits non-zero unless the request succeeds.
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/actuator/health/readiness"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 60s
+      start_interval: 1s

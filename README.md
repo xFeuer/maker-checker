@@ -8,7 +8,7 @@ In banking, maker-checker is the control where one party makes a change and a se
 
 ## Status
 
-Phase 1: walking skeleton, in progress. The first service, `account-service`, answers `GET /v1/status`. The container image, the first Playwright test and the published report come next. See the [roadmap](docs/roadmap.md).
+Phase 1: walking skeleton, in progress. The first service, `account-service`, answers `GET /v1/status` and runs in a container. The first Playwright test and the published report come next. See the [roadmap](docs/roadmap.md).
 
 ## What it will show
 

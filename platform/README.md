@@ -19,3 +19,5 @@ The system under test: an instant-payments platform on a double-entry ledger.
 ```
 
 The service listens on port 8080. Open `http://localhost:8080/v1/status` to see its name and version.
+
+To run it in a container, see [`deploy/`](../deploy/README.md).
