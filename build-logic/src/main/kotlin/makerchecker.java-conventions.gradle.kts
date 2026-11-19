@@ -14,8 +14,9 @@ java {
 
 tasks.withType<JavaCompile>().configureEach {
     options.encoding = "UTF-8"
-    // Every warning fails the build, so none can pile up.
-    options.compilerArgs.addAll(listOf("-Xlint:all", "-Werror"))
+    // Every warning fails the build, so none can pile up. The path lint is the exception: Gradle lists
+    // output directories that may not exist, such as the resources of a module that has none.
+    options.compilerArgs.addAll(listOf("-Xlint:all,-path", "-Werror"))
 }
 
 tasks.withType<Test>().configureEach {
