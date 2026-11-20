@@ -8,7 +8,7 @@ In banking, maker-checker is the control where one party makes a change and a se
 
 ## Status
 
-Phase 1: walking skeleton, in progress. The first service, `account-service`, answers `GET /v1/status` and runs in a container. The first Playwright test checks it from the outside. One command builds, starts, tests and stops all of it. The published report comes next. See the [roadmap](docs/roadmap.md).
+Phase 1: walking skeleton, in progress. The first service, `account-service`, answers `GET /v1/status` and runs in a container. The first Playwright test checks it from the outside. One command builds, starts, tests and stops all of it, and leaves a report that shows each request with its response. Publishing that report from CI comes next. See the [roadmap](docs/roadmap.md).
 
 ## What it will show
 
@@ -36,6 +36,7 @@ One rule holds the design together: `automation/` never imports code from `platf
 |---|---|
 | Platform | Java 25, Spring Boot 4.1 |
 | Automation | Playwright for Java, JUnit 6, Cucumber |
+| Report | Allure |
 | Build | Gradle 9, Kotlin DSL, convention plugins, version catalog |
 | CI | GitHub Actions |
 
@@ -58,6 +59,8 @@ Requires JDK 25 and Docker.
 ```
 
 This one command builds the image, starts the stack, runs the system tests against it and stops the stack. The stack stops even when a test fails.
+
+The run ends with an Allure report, also when a test fails. It is one file, `automation/suites/build/reports/allure/index.html`, and it opens in a browser as it is. See [ADR 0007](docs/adr/0007-allure-behind-a-listener-of-the-framework.md).
 
 ## Decisions
 
