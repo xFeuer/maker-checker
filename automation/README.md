@@ -47,6 +47,8 @@ It is one file that loads nothing from another host. Open it in a browser.
 
 A typed client sends its requests through `ApiTransport`. The transport tells its listeners about every request and its response, and the `allure` module attaches them to the test that made them. A client and a test hold no reporting code.
 
+Allure warns when it cannot do its part, for example when it has to drop an attachment. The run prints such a warning in the console, under `STANDARD_ERROR`. A clean run prints nothing there.
+
 To generate the report again from the results of the last run:
 
 ```

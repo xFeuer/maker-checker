@@ -1,5 +1,7 @@
 @file:Suppress("UnstableApiUsage")
 
+import org.gradle.api.tasks.testing.logging.TestLogEvent
+
 plugins {
     id("makerchecker.automation-conventions")
     id("makerchecker.allure-report-conventions")
@@ -19,6 +21,10 @@ testing {
                 runtimeOnly(platform(libs.allure.bom))
                 runtimeOnly(libs.allure.jupiter)
                 runtimeOnly(project(":automation:allure"))
+
+                // Allure reports its own trouble through SLF4J, such as an attachment that it had to drop. This
+                // provider prints it to the standard error of the test. Without a provider it is lost.
+                runtimeOnly(libs.slf4j.simple)
             }
 
             targets.all {
@@ -31,6 +37,11 @@ testing {
                     mustRunAfter(":startStack")
                     // Every run ends with the report, also when a test fails.
                     finalizedBy("allureReport")
+                    // The console also shows what the tests write to the standard error, such as a warning of
+                    // Allure. A clean run writes nothing there.
+                    testLogging {
+                        events = events + TestLogEvent.STANDARD_ERROR
+                    }
                 }
             }
         }
