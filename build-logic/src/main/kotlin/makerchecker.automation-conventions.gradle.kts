@@ -1,5 +1,6 @@
 plugins {
     `java-library`
+    id("makerchecker.boundary-conventions")
     id("makerchecker.java-conventions")
 }
 
