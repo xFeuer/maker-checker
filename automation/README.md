@@ -20,13 +20,19 @@ The build fails when a module here depends on a project under `platform/`, direc
 
 ## Run the tests
 
-The tests need the stack, so start it first. See [`deploy/`](../deploy/README.md).
+One command builds the image, starts the stack, runs the tests and stops the stack:
+
+```
+./gradlew systemTest
+```
+
+To run the tests against a stack that is already up, start it first. See [`deploy/`](../deploy/README.md). Then run the suite alone:
 
 ```
 ./gradlew :automation:suites:systemTest
 ```
 
-`./gradlew build` compiles them but does not run them.
+A filter such as `--tests` works only with the suite's own task. `./gradlew build` compiles the tests but does not run them.
 
 ## Configuration
 

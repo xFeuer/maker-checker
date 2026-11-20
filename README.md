@@ -8,7 +8,7 @@ In banking, maker-checker is the control where one party makes a change and a se
 
 ## Status
 
-Phase 1: walking skeleton, in progress. The first service, `account-service`, answers `GET /v1/status` and runs in a container. The first Playwright test checks it from the outside. The published report comes next. See the [roadmap](docs/roadmap.md).
+Phase 1: walking skeleton, in progress. The first service, `account-service`, answers `GET /v1/status` and runs in a container. The first Playwright test checks it from the outside. One command builds, starts, tests and stops all of it. The published report comes next. See the [roadmap](docs/roadmap.md).
 
 ## What it will show
 
@@ -48,6 +48,16 @@ Requires JDK 25.
 ```
 
 On Windows, run `gradlew.bat build`. To fix formatting, run the `spotlessApply` task.
+
+## Run the system tests
+
+Requires JDK 25 and Docker.
+
+```
+./gradlew systemTest
+```
+
+This one command builds the image, starts the stack, runs the system tests against it and stops the stack. The stack stops even when a test fails.
 
 ## Decisions
 
