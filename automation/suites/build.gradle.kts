@@ -2,6 +2,7 @@
 
 plugins {
     id("makerchecker.automation-conventions")
+    id("makerchecker.allure-report-conventions")
 }
 
 testing {
@@ -12,6 +13,12 @@ testing {
             dependencies {
                 implementation(project(":automation:api"))
                 implementation(libs.assertj.core)
+
+                // The report: Allure's adapter writes a result for every test, and our listener attaches the
+                // exchanges to it.
+                runtimeOnly(platform(libs.allure.bom))
+                runtimeOnly(libs.allure.jupiter)
+                runtimeOnly(project(":automation:allure"))
             }
 
             targets.all {
@@ -22,6 +29,8 @@ testing {
                     // When the root build starts the stack for these tests, they wait until it is up. This sets
                     // an order, not a dependency: the tests still run alone against a stack that is already up.
                     mustRunAfter(":startStack")
+                    // Every run ends with the report, also when a test fails.
+                    finalizedBy("allureReport")
                 }
             }
         }

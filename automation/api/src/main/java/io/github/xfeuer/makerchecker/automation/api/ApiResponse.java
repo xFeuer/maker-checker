@@ -1,6 +1,5 @@
 package io.github.xfeuer.makerchecker.automation.api;
 
-import com.microsoft.playwright.APIResponse;
 import java.util.Map;
 
 /**
@@ -18,20 +17,12 @@ public final class ApiResponse<T> {
     private final String text;
     private final Class<T> bodyType;
 
-    private ApiResponse(int status, Map<String, String> headers, String text, Class<T> bodyType) {
+    /** Only a transport makes a response, so every response that a test sees went through one. */
+    ApiResponse(int status, Map<String, String> headers, String text, Class<T> bodyType) {
         this.status = status;
-        this.headers = headers;
+        this.headers = Map.copyOf(headers);
         this.text = text;
         this.bodyType = bodyType;
-    }
-
-    /** Copies what a Playwright response holds, then releases that response. */
-    public static <T> ApiResponse<T> from(APIResponse response, Class<T> bodyType) {
-        try {
-            return new ApiResponse<>(response.status(), Map.copyOf(response.headers()), response.text(), bodyType);
-        } finally {
-            response.dispose();
-        }
     }
 
     public int status() {

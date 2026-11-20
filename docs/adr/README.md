@@ -21,3 +21,4 @@ An accepted ADR is not edited to change its decision. A new ADR supersedes it.
 | [0004](0004-playwright-for-java-on-the-api-and-ui-layers.md) | Playwright for Java on the API and UI layers | Accepted |
 | [0005](0005-junit-platform-with-cucumber-on-top.md) | JUnit Platform with Cucumber on top | Accepted |
 | [0006](0006-a-playwright-lifecycle-owned-by-the-framework.md) | A Playwright lifecycle owned by the framework | Accepted |
+| [0007](0007-allure-behind-a-listener-of-the-framework.md) | Allure behind a listener of the framework | Accepted |
