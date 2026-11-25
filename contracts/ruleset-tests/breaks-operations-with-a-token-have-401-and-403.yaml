@@ -1,0 +1,23 @@
+openapi: 3.1.2
+
+info:
+  title: Breaks operations-with-a-token-have-401-and-403
+  version: 0.1.0
+
+paths:
+  /v1/things:
+    get:
+      operationId: listThings
+      security:
+        - AccessToken:
+            - payments:read
+      responses:
+        "200":
+          description: The things. The operation needs a token, and no 401 and no 403 follow.
+        default:
+          description: A problem.
+
+components:
+  securitySchemes:
+    AccessToken:
+      $ref: "../common/components.yaml#/components/securitySchemes/AccessToken"

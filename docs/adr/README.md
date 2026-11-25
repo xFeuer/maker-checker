@@ -27,3 +27,4 @@ An accepted ADR is not edited to change its decision. A new ADR supersedes it.
 | [0010](0010-problem-details-for-every-error-response.md) | Problem details for every error response | Accepted |
 | [0011](0011-money-as-a-decimal-string-with-its-currency.md) | Money as a decimal string with its currency | Accepted |
 | [0012](0012-an-idempotency-key-for-every-post.md) | An idempotency key for every POST | Accepted |
+| [0013](0013-access-tokens-from-an-identity-provider-outside-the-platform.md) | Access tokens from an identity provider outside the platform | Accepted |

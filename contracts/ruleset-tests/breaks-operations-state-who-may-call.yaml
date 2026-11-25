@@ -1,0 +1,15 @@
+openapi: 3.1.2
+
+info:
+  title: Breaks operations-state-who-may-call
+  version: 0.1.0
+
+paths:
+  /v1/things:
+    get:
+      operationId: listThings
+      responses:
+        "200":
+          description: The things. The operation has no security block.
+        default:
+          description: A problem.

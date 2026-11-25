@@ -12,20 +12,22 @@ Each service has its own directory: `contracts/<service>/openapi.yaml`.
 |---|---|
 | `account-service` | [openapi.yaml](account-service/openapi.yaml) |
 
-The parts that the specifications share are in [common/components.yaml](common/components.yaml): the problem document, money and the idempotency key. A specification refers to them and does not copy them.
+The parts that the specifications share are in [common/components.yaml](common/components.yaml): the access token, the problem document, money and the idempotency key. A specification refers to them and does not copy them.
 
 ## Conventions
 
-Three conventions have a decision record:
+Four conventions have a decision record:
 
 - **Errors.** Every 4xx and 5xx response is a problem document of RFC 9457. A client relies on its `type` and its `status`. See [ADR 0010](../docs/adr/0010-problem-details-for-every-error-response.md).
 - **Money.** Money is an object such as `{ "amount": "10.50", "currency": "BRL" }`. The amount is a string with exactly two decimals, and no schema has the type `number`. See [ADR 0011](../docs/adr/0011-money-as-a-decimal-string-with-its-currency.md).
 - **Idempotency.** Every `POST` takes an `Idempotency-Key`. Every other change is a `PUT` or a `DELETE` on a URL that names the thing. See [ADR 0012](../docs/adr/0012-an-idempotency-key-for-every-post.md).
+- **Callers.** A caller sends an access token of the identity provider, as a bearer token. Its scopes say what the caller may do, and every operation names the scopes that it needs. See [ADR 0013](../docs/adr/0013-access-tokens-from-an-identity-provider-outside-the-platform.md).
 
 The smaller ones:
 
 - A specification is written in OpenAPI 3.1.2.
 - Its `servers` block names the address of the service in the local stack, as `deploy/compose.yaml` publishes it.
+- The local stack has a fixed port for each: 8080 for `account-service`, 8081 for `payment-service`, 8082 for the simulator of the clearing network and 8083 for the simulator of the identity provider.
 - A path starts with `/v1`. A breaking change makes `/v2`.
 - Names are in kebab-case in a path, in camelCase for a property, a parameter and an operation ID, and in UPPER_SNAKE_CASE for an enum value.
 - An identifier that the platform issues is a UUID, in a field named like `paymentId`.
@@ -35,6 +37,29 @@ The smaller ones:
 - There is no `null`. A property without a value is absent.
 - Every operation has a `default` response, a problem, for what no other response covers.
 - Every request and every response has an example.
+
+### Who may call an operation
+
+Every operation has a `security` block of its own.
+
+- An operation that needs a token names the scheme `AccessToken` and the scopes that a caller needs, at least one.
+- An operation that anybody may call has an empty block, `security: []`. The status of a service is one.
+- An operation that needs a token has a 401 and a 403 response. The shared parts have both: `Unauthenticated` and `InsufficientScope`.
+- A specification takes the scheme from the shared parts, with a reference under its own `components.securitySchemes`.
+
+The scopes:
+
+| Scope | It lets the caller | Who has it |
+|---|---|---|
+| `accounts:read` | read the accounts of its customer | every user |
+| `payments:read` | read the payments of its customer | every user |
+| `payments:create` | create a payment | a maker |
+| `payments:cancel` | cancel a payment that it made | a maker |
+| `payments:decide` | approve or reject a payment | a checker |
+
+The list is closed. A contract that needs a new scope adds it here and to the rule `scopes-are-known` in [ruleset.yaml](ruleset.yaml).
+
+A scope opens an operation, and the rules of the [domain model](../docs/domain.md#what-each-actor-may-do) still decide. A request for something of another customer gets 404, whatever its scopes.
 
 ### Sensitive fields
 
@@ -75,8 +100,12 @@ Gradle downloads vacuum from its GitHub release and checks the archive against a
 | `objects-are-closed` | every object has `additionalProperties: false` |
 | `no-null-type` | no schema has the type `null` |
 | `sensitive-marker-is-true` | `x-sensitive` is `true` wherever it appears |
+| `operations-state-who-may-call` | every operation has a `security` block of its own |
+| `security-names-a-scope` | an entry of a `security` block names a scheme and at least one scope |
+| `scopes-are-known` | every scope is on the list of the ruleset |
+| `operations-with-a-token-have-401-and-403` | an operation that needs a token has a 401 and a 403 response |
 
-The rules of vacuum already check the kebab-case of a path, the camelCase of a property, the descriptions and the examples. No rule checks the name of a parameter, or the conventions for identifiers, points in time and pages.
+The rules of vacuum already check the kebab-case of a path, the camelCase of a property, the descriptions and the examples. They also check that a `security` block names a scheme that the specification has. No rule checks the name of a parameter, or the conventions for identifiers, points in time and pages.
 
 ### The tests of the rules
 

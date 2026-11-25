@@ -75,3 +75,27 @@ cases:
     expect:
       diagnostics:
         - rule: sensitive-marker-is-true
+  - id: breaks-operations-state-who-may-call
+    input: breaks-operations-state-who-may-call.yaml
+    rules: [operations-state-who-may-call]
+    expect:
+      diagnostics:
+        - rule: operations-state-who-may-call
+  - id: breaks-security-names-a-scope
+    input: breaks-security-names-a-scope.yaml
+    rules: [security-names-a-scope]
+    expect:
+      diagnostics:
+        - rule: security-names-a-scope
+  - id: breaks-scopes-are-known
+    input: breaks-scopes-are-known.yaml
+    rules: [scopes-are-known]
+    expect:
+      diagnostics:
+        - rule: scopes-are-known
+  - id: breaks-operations-with-a-token-have-401-and-403
+    input: breaks-operations-with-a-token-have-401-and-403.yaml
+    rules: [operations-with-a-token-have-401-and-403]
+    expect:
+      diagnostics:
+        - rule: operations-with-a-token-have-401-and-403

@@ -27,6 +27,9 @@ paths:
       description: Creates a sample. A repeat with the same key creates nothing new.
       tags:
         - Samples
+      security:
+        - AccessToken:
+            - payments:create
       parameters:
         - $ref: "../common/components.yaml#/components/parameters/IdempotencyKey"
       requestBody:
@@ -57,6 +60,10 @@ paths:
                   $ref: "#/components/examples/LargeSample"
         "400":
           $ref: "../common/components.yaml#/components/responses/InvalidRequest"
+        "401":
+          $ref: "../common/components.yaml#/components/responses/Unauthenticated"
+        "403":
+          $ref: "../common/components.yaml#/components/responses/InsufficientScope"
         "409":
           description: The first request with this key is still being handled.
           content:
@@ -84,6 +91,9 @@ paths:
       description: Reads one sample by its identifier.
       tags:
         - Samples
+      security:
+        - AccessToken:
+            - payments:read
       parameters:
         - name: sampleId
           in: path
@@ -105,10 +115,17 @@ paths:
               examples:
                 large:
                   $ref: "#/components/examples/LargeSample"
+        "401":
+          $ref: "../common/components.yaml#/components/responses/Unauthenticated"
+        "403":
+          $ref: "../common/components.yaml#/components/responses/InsufficientScope"
         default:
           $ref: "../common/components.yaml#/components/responses/Problem"
 
 components:
+  securitySchemes:
+    AccessToken:
+      $ref: "../common/components.yaml#/components/securitySchemes/AccessToken"
   examples:
     LargeSample:
       summary: A large sample

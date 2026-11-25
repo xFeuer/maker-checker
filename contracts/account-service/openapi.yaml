@@ -27,9 +27,10 @@ paths:
       summary: Report the service name and version.
       description: >-
         The smoke-test target. A successful response proves that the service
-        is up and speaks this contract.
+        is up and speaks this contract. Anybody may call it, without a token.
       tags:
         - Status
+      security: []
       responses:
         "200":
           description: The service is up.
