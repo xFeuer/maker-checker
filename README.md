@@ -26,7 +26,7 @@ Phase 1: walking skeleton, done. The first service, `account-service`, answers `
 | `contracts/` | OpenAPI specifications, the source of truth for both sides. |
 | `deploy/` | Docker Compose files and environment configuration. |
 | `build-logic/` | Gradle convention plugins and build checks, with their tests. |
-| `docs/` | The roadmap and the architecture decision records. |
+| `docs/` | The roadmap, the [domain model](docs/domain.md) and the architecture decision records. |
 
 One rule holds the design together: `automation/` never imports code from `platform/`. It knows the platform only through `contracts/` and the running system. The build enforces the rule: it fails when a project under `automation/` depends on a project under `platform/`. See [ADR 0002](docs/adr/0002-one-repository-with-a-black-box-boundary.md).
 
