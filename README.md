@@ -35,6 +35,7 @@ One rule holds the design together: `automation/` never imports code from `platf
 | Concern | Choice |
 |---|---|
 | Platform | Java 25, Spring Boot 4 |
+| Contracts | OpenAPI 3.1, linted by vacuum |
 | Automation | Playwright for Java, JUnit 6, Cucumber |
 | Report | Allure |
 | Build | Gradle 9, Kotlin DSL, convention plugins, version catalog |
@@ -49,6 +50,8 @@ Requires JDK 25.
 ```
 
 On Windows, run `gradlew.bat build`. To fix formatting, run the `spotlessApply` task.
+
+The build also lints the specifications in `contracts/` with vacuum. Gradle downloads it, so the JDK is still all that the build needs. See [ADR 0009](docs/adr/0009-openapi-3-1-contracts-linted-by-vacuum-in-the-build.md).
 
 ## Run the system tests
 
