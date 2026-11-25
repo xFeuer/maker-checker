@@ -1,0 +1,24 @@
+openapi: 3.1.2
+
+info:
+  title: Breaks objects-are-closed
+  version: 0.1.0
+
+paths:
+  /v1/things:
+    get:
+      operationId: listThings
+      responses:
+        "200":
+          description: The things.
+        default:
+          description: A problem.
+
+components:
+  schemas:
+    Thing:
+      type: object
+      description: An object that does not say whether it has other properties.
+      properties:
+        name:
+          type: string

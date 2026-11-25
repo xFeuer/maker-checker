@@ -1,3 +1,4 @@
+import io.github.xfeuer.makerchecker.buildlogic.RulesetTest
 import io.github.xfeuer.makerchecker.buildlogic.SpecificationLint
 import io.github.xfeuer.makerchecker.buildlogic.VacuumPlatform
 import io.github.xfeuer.makerchecker.buildlogic.VerifiedUnpack
@@ -7,7 +8,8 @@ plugins {
     id("makerchecker.formatting-conventions")
 }
 
-// ADR 0009: vacuum lints every specification of a project that applies this plugin, and check runs the lint.
+// ADR 0009: vacuum lints every specification of a project that applies this plugin and tests the rules of its
+// ruleset. check runs both.
 
 val libs = the<VersionCatalogsExtension>().named("libs")
 val vacuumVersion = libs.findVersion("vacuum").get().requiredVersion
@@ -65,8 +67,25 @@ val lintSpecifications =
         findings = layout.buildDirectory.file("reports/vacuum/findings.txt")
     }
 
+val testRuleset =
+    tasks.register<RulesetTest>("testRuleset") {
+        group = LifecycleBasePlugin.VERIFICATION_GROUP
+        description = "Tests the rules of the ruleset against documents that keep them or break them."
+        vacuumHome = unpackVacuum.flatMap { it.destination }
+        executable = platform.map { it.executable() }
+        suite = layout.projectDirectory.file("ruleset-tests/suite.yaml")
+        sources.from(
+            fileTree(layout.projectDirectory) {
+                include("**/*.yaml")
+                exclude("build/**")
+            },
+        )
+        workingDirectory = layout.projectDirectory
+        result = layout.buildDirectory.file("reports/vacuum/ruleset-tests.json")
+    }
+
 tasks.check {
-    dependsOn(lintSpecifications)
+    dependsOn(lintSpecifications, testRuleset)
 }
 
 spotless {
