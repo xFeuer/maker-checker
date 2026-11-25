@@ -1,0 +1,182 @@
+openapi: 3.1.2
+
+info:
+  title: A specification that keeps the rules
+  summary: The sample that the tests of the ruleset lint with every rule.
+  description: >-
+    It follows every convention of the contracts and uses every shared part.
+    It is not the contract of a service.
+  version: 0.1.0
+  license:
+    name: MIT
+    identifier: MIT
+
+servers:
+  - url: http://localhost:8080
+    description: The local stack.
+
+tags:
+  - name: Samples
+    description: Things that exist to show the conventions.
+
+paths:
+  /v1/samples:
+    post:
+      operationId: createSample
+      summary: Create a sample.
+      description: Creates a sample. A repeat with the same key creates nothing new.
+      tags:
+        - Samples
+      parameters:
+        - $ref: "../common/components.yaml#/components/parameters/IdempotencyKey"
+      requestBody:
+        description: The sample to create.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewSample"
+            examples:
+              large:
+                summary: A large sample
+                value:
+                  size: LARGE
+                  price:
+                    amount: "10.50"
+                    currency: BRL
+                  ownerName: Ada Lovelace
+      responses:
+        "201":
+          description: The sample exists now.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Sample"
+              examples:
+                large:
+                  $ref: "#/components/examples/LargeSample"
+        "400":
+          $ref: "../common/components.yaml#/components/responses/InvalidRequest"
+        "409":
+          description: The first request with this key is still being handled.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "../common/components.yaml#/components/schemas/Problem"
+              examples:
+                requestInProgress:
+                  $ref: "../common/components.yaml#/components/examples/RequestInProgress"
+        "422":
+          description: The key came before, with another request.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "../common/components.yaml#/components/schemas/Problem"
+              examples:
+                idempotencyKeyReused:
+                  $ref: "../common/components.yaml#/components/examples/IdempotencyKeyReused"
+        default:
+          $ref: "../common/components.yaml#/components/responses/Problem"
+  /v1/samples/{sampleId}:
+    get:
+      operationId: getSample
+      summary: Read a sample.
+      description: Reads one sample by its identifier.
+      tags:
+        - Samples
+      parameters:
+        - name: sampleId
+          in: path
+          required: true
+          description: The identifier of the sample.
+          schema:
+            type: string
+            format: uuid
+            description: A UUID.
+            examples:
+              - 3f0a8c3e-5b1d-4c58-9a66-2f1d6f0b7e21
+      responses:
+        "200":
+          description: The sample.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Sample"
+              examples:
+                large:
+                  $ref: "#/components/examples/LargeSample"
+        default:
+          $ref: "../common/components.yaml#/components/responses/Problem"
+
+components:
+  examples:
+    LargeSample:
+      summary: A large sample
+      description: A sample as a response shows it.
+      value:
+        sampleId: 3f0a8c3e-5b1d-4c58-9a66-2f1d6f0b7e21
+        size: LARGE
+        price:
+          amount: "10.50"
+          currency: BRL
+        ownerName: Ada Lovelace
+        createdAt: "2026-11-25T18:30:00Z"
+  schemas:
+    NewSample:
+      type: object
+      description: What a client sends to create a sample.
+      additionalProperties: false
+      required:
+        - size
+        - price
+        - ownerName
+      properties:
+        size:
+          $ref: "#/components/schemas/Size"
+        price:
+          $ref: "../common/components.yaml#/components/schemas/Money"
+        ownerName:
+          $ref: "#/components/schemas/OwnerName"
+    Sample:
+      type: object
+      description: A sample as the platform keeps it.
+      additionalProperties: false
+      required:
+        - sampleId
+        - size
+        - price
+        - ownerName
+        - createdAt
+      properties:
+        sampleId:
+          type: string
+          format: uuid
+          description: The identifier that the platform gave the sample.
+          examples:
+            - 3f0a8c3e-5b1d-4c58-9a66-2f1d6f0b7e21
+        size:
+          $ref: "#/components/schemas/Size"
+        price:
+          $ref: "../common/components.yaml#/components/schemas/Money"
+        ownerName:
+          $ref: "#/components/schemas/OwnerName"
+        createdAt:
+          type: string
+          format: date-time
+          description: When the platform created the sample, in UTC.
+          examples:
+            - "2026-11-25T18:30:00Z"
+    Size:
+      type: string
+      description: How large a sample is.
+      enum:
+        - SMALL
+        - LARGE
+      examples:
+        - LARGE
+    OwnerName:
+      type: string
+      description: The name of the person who owns the sample. It is personal data.
+      x-sensitive: true
+      examples:
+        - Ada Lovelace

@@ -43,12 +43,15 @@ paths:
                   value:
                     service: account-service
                     version: 0.1.0
+        default:
+          $ref: "../common/components.yaml#/components/responses/Problem"
 
 components:
   schemas:
     ServiceStatus:
       type: object
       description: Identity of a running service.
+      additionalProperties: false
       required:
         - service
         - version

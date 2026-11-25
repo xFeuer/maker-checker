@@ -1,0 +1,15 @@
+openapi: 3.1.2
+
+info:
+  title: Breaks paths-start-with-a-version
+  version: 0.1.0
+
+paths:
+  /things:
+    get:
+      operationId: listThings
+      responses:
+        "200":
+          description: The things, on a path without a version.
+        default:
+          description: A problem.

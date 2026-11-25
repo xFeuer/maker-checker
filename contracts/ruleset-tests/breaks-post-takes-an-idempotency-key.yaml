@@ -1,0 +1,21 @@
+openapi: 3.1.2
+
+info:
+  title: Breaks post-takes-an-idempotency-key
+  version: 0.1.0
+
+paths:
+  /v1/things:
+    post:
+      operationId: createThing
+      parameters:
+        - name: X-Request-Id
+          in: header
+          required: true
+          schema:
+            type: string
+      responses:
+        "201":
+          description: The thing. The request had no Idempotency-Key.
+        default:
+          description: A problem.

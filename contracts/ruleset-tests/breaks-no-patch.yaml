@@ -1,0 +1,21 @@
+openapi: 3.1.2
+
+info:
+  title: Breaks no-patch
+  version: 0.1.0
+
+paths:
+  /v1/things/{thingId}:
+    patch:
+      operationId: changeThing
+      parameters:
+        - name: thingId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The thing after the change.
+        default:
+          description: A problem.

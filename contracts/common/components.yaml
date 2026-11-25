@@ -1,0 +1,178 @@
+openapi: 3.1.2
+
+info:
+  title: Shared components
+  summary: The parts that every specification of the maker-checker platform shares.
+  description: >-
+    A specification refers to these parts and does not copy them. They hold
+    what the conventions of the contracts fix for every service: the problem
+    document, money and the idempotency key.
+  version: 0.1.0
+  license:
+    name: MIT
+    identifier: MIT
+
+components:
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: >-
+        Makes the request safe to repeat. The client chooses the key. A repeat
+        of the same request with the same key gets the first response again.
+        See ADR 0012.
+      schema:
+        type: string
+        description: >-
+          The key in double quotes: 1 to 64 letters, digits, hyphens or
+          underscores.
+        pattern: '^"[A-Za-z0-9_-]{1,64}"$'
+        examples:
+          - '"8e03978e-40d5-43e8-bc93-6894a57f9324"'
+
+  responses:
+    Problem:
+      description: >-
+        A problem. Its type and its status say what happened. See ADR 0010.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+          examples:
+            unexpectedFailure:
+              $ref: "#/components/examples/UnexpectedFailure"
+    InvalidRequest:
+      description: The request breaks the contract. The problem lists every violation.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+          examples:
+            invalidRequest:
+              $ref: "#/components/examples/InvalidRequest"
+
+  examples:
+    UnexpectedFailure:
+      summary: A failure that nobody expected
+      value:
+        type: about:blank
+        title: Internal Server Error
+        status: 500
+    InvalidRequest:
+      summary: A request with two violations
+      value:
+        type: https://xfeuer.github.io/maker-checker/problems/invalid-request
+        title: The request breaks the contract.
+        status: 400
+        errors:
+          - detail: The amount has exactly two decimals.
+            pointer: "#/amount/amount"
+          - detail: The key is 1 to 64 letters, digits, hyphens or underscores, in double quotes.
+            parameter: Idempotency-Key
+    IdempotencyKeyReused:
+      summary: A key that came before, with another request
+      value:
+        type: https://xfeuer.github.io/maker-checker/problems/idempotency-key-reused
+        title: The idempotency key belongs to another request.
+        status: 422
+    RequestInProgress:
+      summary: A repeat that arrives while the first request is still being handled
+      value:
+        type: https://xfeuer.github.io/maker-checker/problems/request-in-progress
+        title: The first request with this idempotency key is still being handled.
+        status: 409
+
+  schemas:
+    Problem:
+      type: object
+      description: >-
+        A problem document of RFC 9457. A client relies on its type and its
+        status. The title and the detail are for people.
+      additionalProperties: false
+      required:
+        - type
+        - title
+        - status
+      properties:
+        type:
+          type: string
+          format: uri
+          description: >-
+            Identifies the problem. It is about:blank when the status says
+            everything.
+          examples:
+            - https://xfeuer.github.io/maker-checker/problems/invalid-request
+        title:
+          type: string
+          description: Names the problem in a few words. It is the same for every problem of one type.
+          examples:
+            - The request breaks the contract.
+        status:
+          type: integer
+          description: The status code of the response.
+          minimum: 400
+          maximum: 599
+          examples:
+            - 400
+        detail:
+          type: string
+          description: Explains this one occurrence to a person.
+          examples:
+            - The request has two violations.
+        errors:
+          type: array
+          description: Every violation of the contract. Only a problem with the status 400 has it.
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/Violation"
+          examples:
+            - - detail: The amount has exactly two decimals.
+                pointer: "#/amount/amount"
+    Violation:
+      type: object
+      description: >-
+        One violation of the contract. It names its place with a pointer or
+        with a parameter.
+      additionalProperties: false
+      required:
+        - detail
+      properties:
+        detail:
+          type: string
+          description: Says what is wrong.
+          examples:
+            - The amount has exactly two decimals.
+        pointer:
+          type: string
+          description: A JSON Pointer to the place in the body, written as a URI fragment.
+          examples:
+            - "#/amount/amount"
+        parameter:
+          type: string
+          description: The name of the header, the query parameter or the path parameter.
+          examples:
+            - Idempotency-Key
+    Money:
+      type: object
+      description: An amount of money with its currency. See ADR 0011.
+      additionalProperties: false
+      required:
+        - amount
+        - currency
+      properties:
+        amount:
+          type: string
+          description: >-
+            The amount in reais: a point and exactly two decimals, no sign and
+            no leading zero.
+          pattern: '^(0|[1-9][0-9]{0,9})\.[0-9]{2}$'
+          examples:
+            - "10.50"
+        currency:
+          type: string
+          description: The currency, as a code of ISO 4217. The platform has one.
+          enum:
+            - BRL
+          examples:
+            - BRL

@@ -6,3 +6,131 @@
 # A specification is clean when vacuum reports nothing, at any level. A rule that does not fit is switched off
 # under "rules", with the reason next to it.
 extends: [[spectral:oas, recommended]]
+
+# The conventions of README.md, as far as a linter can check them. Each rule has a document that breaks it, in
+# ruleset-tests/.
+rules:
+  # ADR 0010
+  error-responses-are-problems:
+    description: An error response is a problem document, with the media type application/problem+json.
+    severity: error
+    given: "$.paths[*][*].responses[?(@property.match(/^([45]|default)/))].content[*]~"
+    then:
+      function: enumeration
+      functionOptions:
+        values:
+          - application/problem+json
+  operations-have-a-default-response:
+    description: An operation has a default response, for what no other response covers.
+    severity: error
+    given: "$.paths[*][get,put,post,delete].responses"
+    then:
+      field: default
+      function: defined
+
+  # ADR 0011
+  no-number-type:
+    description: No schema has the type number. A decimal value is a string, and a whole number is an integer.
+    severity: error
+    given: "$..type"
+    then:
+      function: schema
+      functionOptions:
+        schema:
+          not:
+            anyOf:
+              - const: number
+              - type: array
+                contains:
+                  const: number
+
+  # ADR 0012
+  post-takes-an-idempotency-key:
+    description: A POST takes a required Idempotency-Key header.
+    severity: error
+    given: "$.paths[*].post"
+    then:
+      field: parameters
+      function: schema
+      functionOptions:
+        schema:
+          type: array
+          contains:
+            type: object
+            required: [name, in, required]
+            properties:
+              name:
+                const: Idempotency-Key
+              in:
+                const: header
+              required:
+                const: true
+  no-patch:
+    description: No operation is a PATCH. A change is a POST, a PUT or a DELETE.
+    severity: error
+    given: "$.paths[*]"
+    then:
+      field: patch
+      function: undefined
+
+  # README.md
+  paths-start-with-a-version:
+    description: A path starts with the version of the API, such as /v1.
+    severity: error
+    given: "$.paths[*]~"
+    then:
+      function: pattern
+      functionOptions:
+        match: "^/v[1-9][0-9]*/"
+  operation-ids-in-camel-case:
+    description: An operationId is in camelCase.
+    severity: error
+    given: "$.paths[*][get,put,post,delete].operationId"
+    then:
+      function: casing
+      functionOptions:
+        type: camel
+  enum-values-in-upper-snake-case:
+    description: An enum value is in UPPER_SNAKE_CASE.
+    severity: error
+    given: "$..enum[*]"
+    then:
+      function: pattern
+      functionOptions:
+        match: "^[A-Z][A-Z0-9]*(_[A-Z0-9]+)*$"
+  objects-are-closed:
+    description: An object declares every property that it can have, with additionalProperties set to false.
+    severity: error
+    given: "$..[?(@.type == 'object')]"
+    then:
+      function: schema
+      functionOptions:
+        schema:
+          type: object
+          required: [additionalProperties]
+          properties:
+            additionalProperties:
+              const: false
+  no-null-type:
+    description: No schema has the type null. A property without a value is absent.
+    severity: error
+    given: "$..type"
+    then:
+      function: schema
+      functionOptions:
+        schema:
+          not:
+            anyOf:
+              - const: "null"
+              - type: array
+                contains:
+                  const: "null"
+  sensitive-marker-is-true:
+    description: A sensitive field is marked with x-sensitive set to true. Any other field has no such marker.
+    severity: error
+    given: "$..['x-sensitive']"
+    then:
+      function: schema
+      functionOptions:
+        schema:
+          const: true

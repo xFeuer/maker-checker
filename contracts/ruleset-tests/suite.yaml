@@ -1,0 +1,77 @@
+# The tests of ../ruleset.yaml. vacuum test runs them, and a case passes when vacuum reports exactly what the case
+# expects. See README.md.
+version: 1
+ruleset: ../ruleset.yaml
+cases:
+  # One specification keeps every rule. It is linted with all of them, the rules of vacuum included.
+  - id: keeps-the-rules
+    input: keeps-the-rules.yaml
+    expect:
+      diagnostics: []
+  # Each rule of ours has a document that breaks it and nothing else.
+  - id: breaks-error-responses-are-problems
+    input: breaks-error-responses-are-problems.yaml
+    rules: [error-responses-are-problems]
+    expect:
+      diagnostics:
+        - rule: error-responses-are-problems
+  - id: breaks-operations-have-a-default-response
+    input: breaks-operations-have-a-default-response.yaml
+    rules: [operations-have-a-default-response]
+    expect:
+      diagnostics:
+        - rule: operations-have-a-default-response
+  - id: breaks-no-number-type
+    input: breaks-no-number-type.yaml
+    rules: [no-number-type]
+    expect:
+      diagnostics:
+        - rule: no-number-type
+  - id: breaks-post-takes-an-idempotency-key
+    input: breaks-post-takes-an-idempotency-key.yaml
+    rules: [post-takes-an-idempotency-key]
+    expect:
+      diagnostics:
+        - rule: post-takes-an-idempotency-key
+  - id: breaks-no-patch
+    input: breaks-no-patch.yaml
+    rules: [no-patch]
+    expect:
+      diagnostics:
+        - rule: no-patch
+  - id: breaks-paths-start-with-a-version
+    input: breaks-paths-start-with-a-version.yaml
+    rules: [paths-start-with-a-version]
+    expect:
+      diagnostics:
+        - rule: paths-start-with-a-version
+  - id: breaks-operation-ids-in-camel-case
+    input: breaks-operation-ids-in-camel-case.yaml
+    rules: [operation-ids-in-camel-case]
+    expect:
+      diagnostics:
+        - rule: operation-ids-in-camel-case
+  - id: breaks-enum-values-in-upper-snake-case
+    input: breaks-enum-values-in-upper-snake-case.yaml
+    rules: [enum-values-in-upper-snake-case]
+    expect:
+      diagnostics:
+        - rule: enum-values-in-upper-snake-case
+  - id: breaks-objects-are-closed
+    input: breaks-objects-are-closed.yaml
+    rules: [objects-are-closed]
+    expect:
+      diagnostics:
+        - rule: objects-are-closed
+  - id: breaks-no-null-type
+    input: breaks-no-null-type.yaml
+    rules: [no-null-type]
+    expect:
+      diagnostics:
+        - rule: no-null-type
+  - id: breaks-sensitive-marker-is-true
+    input: breaks-sensitive-marker-is-true.yaml
+    rules: [sensitive-marker-is-true]
+    expect:
+      diagnostics:
+        - rule: sensitive-marker-is-true

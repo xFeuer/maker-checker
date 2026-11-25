@@ -1,0 +1,15 @@
+openapi: 3.1.2
+
+info:
+  title: Breaks operation-ids-in-camel-case
+  version: 0.1.0
+
+paths:
+  /v1/things:
+    get:
+      operationId: list_things
+      responses:
+        "200":
+          description: The things.
+        default:
+          description: A problem.
