@@ -34,7 +34,7 @@ One rule holds the design together: `automation/` never imports code from `platf
 
 | Concern | Choice |
 |---|---|
-| Platform | Java 25, Spring Boot 4.1 |
+| Platform | Java 25, Spring Boot 4 |
 | Automation | Playwright for Java, JUnit 6, Cucumber |
 | Report | Allure |
 | Build | Gradle 9, Kotlin DSL, convention plugins, version catalog |
