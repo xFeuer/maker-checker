@@ -182,17 +182,17 @@ A night spans two days. A payment at 23:30 and one at 00:30 share a night limit,
 
 ```mermaid
 stateDiagram-v2
-    direction LR
+    %% The order of the lines sets the layout. This one keeps both right corners empty, where GitHub puts its controls.
     state "pending approval" as pending
-    [*] --> pending: created above the approval limit
-    [*] --> processing: created at or below it
     [*] --> settled: inbound
+    [*] --> processing: needs no approval
+    [*] --> pending: needs approval
+    processing --> settled: booked
+    processing --> failed: stopped
     pending --> processing: approved
     pending --> rejected: rejected
     pending --> canceled: canceled
     pending --> expired: 24 hours pass
-    processing --> settled: booked
-    processing --> failed: stopped
 ```
 
 | State | Meaning | Final |
