@@ -1,0 +1,8 @@
+# The rules that every specification in this directory has to keep. See ADR 0009.
+#
+# The format is the one of Spectral, and vacuum reads it. Under the name "spectral:oas", vacuum loads its own rules
+# for OpenAPI. "recommended" is the set that it recommends.
+#
+# A specification is clean when vacuum reports nothing, at any level. A rule that does not fit is switched off
+# under "rules", with the reason next to it.
+extends: [[spectral:oas, recommended]]

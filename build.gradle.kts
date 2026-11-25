@@ -32,8 +32,6 @@ spotless {
             ".github/**/*.md",
             ".github/**/*.yml",
             "automation/*.md",
-            "contracts/*.md",
-            "contracts/**/*.yaml",
             "deploy/*.md",
             "deploy/*.yaml",
             "docs/**/*.md",

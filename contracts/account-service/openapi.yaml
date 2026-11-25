@@ -1,12 +1,20 @@
-openapi: 3.1.1
+openapi: 3.1.2
 
 info:
   title: account-service
   summary: Accounts and ledger of the maker-checker platform.
+  description: >-
+    The service that owns the accounts and the ledger of the platform. It
+    keeps the balances, the holds and the ledger transactions, and it does not
+    know why money moves.
   version: 0.1.0
   license:
     name: MIT
     identifier: MIT
+
+servers:
+  - url: http://localhost:8080
+    description: The local stack, as `deploy/compose.yaml` starts it.
 
 tags:
   - name: Status

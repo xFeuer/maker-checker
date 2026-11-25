@@ -23,3 +23,4 @@ An accepted ADR is not edited to change its decision. A new ADR supersedes it.
 | [0006](0006-a-playwright-lifecycle-owned-by-the-framework.md) | A Playwright lifecycle owned by the framework | Accepted |
 | [0007](0007-allure-behind-a-listener-of-the-framework.md) | Allure behind a listener of the framework | Accepted |
 | [0008](0008-two-services-and-a-simulator-of-the-clearing-network.md) | Two services and a simulator of the clearing network | Accepted |
+| [0009](0009-openapi-3-1-contracts-linted-by-vacuum-in-the-build.md) | OpenAPI 3.1 contracts, linted by vacuum in the build | Accepted |
