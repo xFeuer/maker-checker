@@ -8,7 +8,7 @@ In banking, maker-checker is the control where one party makes a change and a se
 
 ## Status
 
-Phase 1: walking skeleton, in progress. The first service, `account-service`, answers `GET /v1/status` and runs in a container. The first Playwright test checks it from the outside. One command builds, starts, tests and stops all of it, and leaves a report that shows each request with its response. Publishing that report from CI comes next. See the [roadmap](docs/roadmap.md).
+Phase 1: walking skeleton, done. The first service, `account-service`, answers `GET /v1/status` and runs in a container. The first Playwright test checks it from the outside. One command builds, starts, tests and stops all of it, and leaves a report that shows each request with its response. CI runs that command for every pull request and for `main`, and it publishes the [report of the last run on `main`](https://xfeuer.github.io/maker-checker/). Phase 2 comes next: the domain and its contracts. See the [roadmap](docs/roadmap.md).
 
 ## What it will show
 
@@ -58,9 +58,11 @@ Requires JDK 25 and Docker.
 ./gradlew systemTest
 ```
 
-This one command builds the image, starts the stack, runs the system tests against it and stops the stack. The stack stops even when a test fails.
+This one command builds the image, starts the stack, runs the system tests against it and stops the stack. The stack stops even when a test fails. Before it stops, the run saves the logs of the stack to `build/stack-logs/stack.log`.
 
 The run ends with an Allure report, also when a test fails. It is one file, `automation/suites/build/reports/allure/index.html`, and it opens in a browser as it is. See [ADR 0007](docs/adr/0007-allure-behind-a-listener-of-the-framework.md).
+
+CI runs the same command. The report of the last run on `main` is online: <https://xfeuer.github.io/maker-checker/>. Every run also keeps its report and the logs of the stack as artifacts.
 
 ## Decisions
 
