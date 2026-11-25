@@ -2,3 +2,6 @@
 *.bat text eol=crlf
 *.cmd text eol=crlf
 *.jar binary
+
+# Gradle writes this script with CRLF line endings, and Dependabot commits it that way. Git keeps it as it is.
+/gradlew.bat -text
