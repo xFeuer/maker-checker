@@ -1,0 +1,26 @@
+openapi: 3.1.2
+
+info:
+  title: Breaks security-names-a-scope
+  version: 0.1.0
+
+paths:
+  /v1/things:
+    get:
+      operationId: listThings
+      security:
+        - AccessToken: []
+      responses:
+        "200":
+          description: The things. The requirement above names no scope.
+        "401":
+          description: A problem.
+        "403":
+          description: A problem.
+        default:
+          description: A problem.
+
+components:
+  securitySchemes:
+    AccessToken:
+      $ref: "../common/components.yaml#/components/securitySchemes/AccessToken"

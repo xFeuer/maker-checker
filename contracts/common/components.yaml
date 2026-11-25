@@ -5,14 +5,23 @@ info:
   summary: The parts that every specification of the maker-checker platform shares.
   description: >-
     A specification refers to these parts and does not copy them. They hold
-    what the conventions of the contracts fix for every service: the problem
-    document, money and the idempotency key.
+    what the conventions of the contracts fix for every service: the access
+    token, the problem document, money and the idempotency key.
   version: 0.1.0
   license:
     name: MIT
     identifier: MIT
 
 components:
+  securitySchemes:
+    AccessToken:
+      type: openIdConnect
+      description: >-
+        An access token of the identity provider, sent as a bearer token in
+        the Authorization header. The scopes of the token say what the caller
+        may do, and an operation names the scopes that it needs. See ADR 0013.
+      openIdConnectUrl: http://localhost:8083/.well-known/openid-configuration
+
   parameters:
     IdempotencyKey:
       name: Idempotency-Key
@@ -31,7 +40,43 @@ components:
         examples:
           - '"8e03978e-40d5-43e8-bc93-6894a57f9324"'
 
+  headers:
+    WwwAuthenticate:
+      description: >-
+        The challenge of RFC 6750. It is the scheme Bearer alone when the
+        request had no token. When the request had one that is not valid, it
+        also names the error invalid_token.
+      required: true
+      schema:
+        type: string
+        description: The scheme Bearer, and the error when the request had a token.
+        examples:
+          - Bearer error="invalid_token"
+
   responses:
+    Unauthenticated:
+      description: >-
+        The request has no valid access token. It has none at all, or one that
+        is expired, wrongly signed or meant for another service.
+      headers:
+        WWW-Authenticate:
+          $ref: "#/components/headers/WwwAuthenticate"
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+          examples:
+            unauthenticated:
+              $ref: "#/components/examples/Unauthenticated"
+    InsufficientScope:
+      description: The access token is valid, and it lacks a scope that the operation needs.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+          examples:
+            insufficientScope:
+              $ref: "#/components/examples/InsufficientScope"
     Problem:
       description: >-
         A problem. Its type and its status say what happened. See ADR 0010.
@@ -53,6 +98,18 @@ components:
               $ref: "#/components/examples/InvalidRequest"
 
   examples:
+    Unauthenticated:
+      summary: A request without a valid access token
+      value:
+        type: about:blank
+        title: Unauthorized
+        status: 401
+    InsufficientScope:
+      summary: A token without a scope that the operation needs
+      value:
+        type: https://xfeuer.github.io/maker-checker/problems/insufficient-scope
+        title: The access token lacks a scope that the operation needs.
+        status: 403
     UnexpectedFailure:
       summary: A failure that nobody expected
       value:

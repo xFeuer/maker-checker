@@ -134,3 +134,56 @@ rules:
       functionOptions:
         schema:
           const: true
+
+  # ADR 0013
+  operations-state-who-may-call:
+    description: An operation states who may call it, in a security block of its own. An empty block means anybody.
+    severity: error
+    given: "$.paths[*][get,put,post,delete]"
+    then:
+      field: security
+      function: defined
+  security-names-a-scope:
+    description: A security requirement names a scheme, and at least one scope for it.
+    severity: error
+    given: "$.paths[*][get,put,post,delete].security[*]"
+    then:
+      function: schema
+      functionOptions:
+        schema:
+          type: object
+          minProperties: 1
+          additionalProperties:
+            type: array
+            minItems: 1
+  scopes-are-known:
+    description: A scope is one of this list. A contract that needs a new scope adds it here and to README.md.
+    severity: error
+    given: "$.paths[*][get,put,post,delete].security[*][*][*]"
+    then:
+      function: enumeration
+      functionOptions:
+        values:
+          - accounts:read
+          - payments:read
+          - payments:create
+          - payments:cancel
+          - payments:decide
+  operations-with-a-token-have-401-and-403:
+    description: An operation that needs a token has a 401 response and a 403 response.
+    severity: error
+    given: "$.paths[*][get,put,post,delete]"
+    then:
+      function: schema
+      functionOptions:
+        schema:
+          if:
+            required: [security]
+            properties:
+              security:
+                minItems: 1
+          then:
+            required: [responses]
+            properties:
+              responses:
+                required: ["401", "403"]

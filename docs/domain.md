@@ -14,6 +14,7 @@ The rules are modeled on [Pix](https://www.bcb.gov.br/en/financialstability/pix_
 | User | A person who acts for one customer. |
 | Maker | A user who may create payments. |
 | Checker | A user who may approve or reject payments. |
+| Identity provider | The system outside the platform that knows the users and vouches for every caller. |
 | Account | Money of one customer, in one currency. |
 | Account number | What a payer needs to pay an account of the platform. |
 | Ledger | The record of every movement of money, kept by double entry. |
@@ -46,6 +47,22 @@ The rules are modeled on [Pix](https://www.bcb.gov.br/en/financialstability/pix_
 
 Every user reads the accounts and the payments of their customer. The platform has no bank staff, and no actor opens a customer, a user or an account: see `CUS-5`.
 
+An identity provider outside the platform says who a caller is: which user, for which customer, and whether a maker, a checker or both. See [ADR 0013](adr/0013-access-tokens-from-an-identity-provider-outside-the-platform.md).
+
+### What each actor may do
+
+| Action | Maker | Checker | Clearing network | Rules |
+|---|---|---|---|---|
+| Read the accounts of their customer | Yes | Yes | No | CUS-4 |
+| Read the payments of their customer | Yes | Yes | No | CUS-4, PAY-15 |
+| Create a payment | Yes | No | No | PAY-3 |
+| Cancel a payment that waits for approval | Yes, if they made it | No | No | APR-4 |
+| Approve or reject a payment that waits for approval | No | Yes, unless they made it | No | APR-2, APR-3 |
+| Deliver an inbound payment | No | No | Yes | PAY-3, PAY-12 |
+| Give the final answer for an outbound payment | No | No | Yes | NET-3 |
+
+A user who is a maker and a checker may do what either may (`CUS-3`). An actor who may not do something is refused. A request for something of another customer is refused like a request for something that does not exist (`CUS-4`).
+
 ## Rules
 
 Two words have a fixed meaning in the rules.
@@ -72,7 +89,7 @@ Two words have a fixed meaning in the rules.
 | CUS-2 | A user acts for exactly one customer. |
 | CUS-3 | A user is a maker, a checker, or both. |
 | CUS-4 | A user reads and changes only what belongs to their customer. To a user, the accounts and the payments of another customer do not exist. |
-| CUS-5 | Onboarding is outside the platform: no operation creates a customer, a user or an account. In this repository a test seeds them. |
+| CUS-5 | Onboarding is outside the platform: no operation creates a customer, a user or an account. In this repository a test seeds the customers and their accounts, and it asks the simulator of the identity provider for its users. |
 
 ### Accounts and the ledger
 
@@ -260,15 +277,19 @@ Some rules cannot be tested from the outside without help. The [roadmap](roadmap
 | A test needs | Because of |
 |---|---|
 | To move the clock | `TIM-1`: nobody can wait for a night, or for 24 hours. |
-| To seed data | `CUS-5`: nothing else creates a customer, a user or an account, with their limits. |
+| To seed data | `CUS-5`: nothing else creates a customer or an account, with their limits. |
 | To follow a request | `AUD-2`: an event names the request that caused it. |
+| To call as any user | `CUS-3`, `CUS-4`: a scenario needs a maker, a checker, a user who is both, and users of two customers. |
 | To steer the clearing network | `NET-3`: a test chooses whether the network settles, refuses, answers late, answers twice or stays silent. |
+
+The simulators give the last two: the one of the identity provider and the one of the clearing network.
 
 ## What the model leaves out
 
 - Returns of a received payment, and scheduled or recurring payments.
 - Bank staff, and with them every operation on a customer from the inside, such as blocking an account.
 - Onboarding: see `CUS-5`.
+- Logging in. An identity provider outside the platform knows the users: see [ADR 0013](adr/0013-access-tokens-from-an-identity-provider-outside-the-platform.md).
 - Changing a limit through an API. A limit is set when its account or its customer is seeded.
 - A second currency.
 - Aliases for the accounts of the platform. An account of the platform is paid by its account number, also from the clearing network.
