@@ -18,6 +18,9 @@ jobs:
     name: Build
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    outputs:
+      # Set when this run uploaded a report for GitHub Pages.
+      pages-artifact-id: ${{ steps.pages-artifact.outputs.artifact_id }}
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -37,3 +40,55 @@ jobs:
 
       - name: Build
         run: ./gradlew build
+
+      # The system tests run in this job. A job of their own would share the Gradle cache of this one, because the
+      # key of that cache has no job name, and only one of the two jobs could write it.
+      - name: Run the system tests
+        id: system-tests
+        run: ./gradlew systemTest
+
+      # A green run has a report and the logs of the stack, so a missing file fails it. A red run uploads what it
+      # has: it may have ended before the tests wrote a result.
+      - name: Upload the report
+        id: report
+        if: ${{ !cancelled() && steps.system-tests.outcome != 'skipped' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: allure-report
+          path: automation/suites/build/reports/allure/index.html
+          if-no-files-found: ${{ steps.system-tests.outcome == 'success' && 'error' || 'ignore' }}
+
+      - name: Upload the logs of the stack
+        if: ${{ !cancelled() && steps.system-tests.outcome != 'skipped' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: stack-logs
+          path: build/stack-logs/stack.log
+          if-no-files-found: ${{ steps.system-tests.outcome == 'success' && 'error' || 'ignore' }}
+
+      # GitHub Pages shows the report of the last run on main, also when that run is red.
+      - name: Upload the report for GitHub Pages
+        id: pages-artifact
+        if: ${{ !cancelled() && github.ref == 'refs/heads/main' && steps.report.outputs.artifact-id != '' }}
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: automation/suites/build/reports/allure
+
+  publish-report:
+    name: Publish the report
+    needs: build
+    # Runs when the build uploaded a report for GitHub Pages, also when the build is red.
+    if: ${{ !cancelled() && needs.build.outputs.pages-artifact-id != '' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    # Only this job may deploy. It checks out nothing and runs no code of the repository.
+    permissions:
+      pages: write # to deploy to GitHub Pages
+      id-token: write # to prove to GitHub Pages which workflow run the deployment comes from
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

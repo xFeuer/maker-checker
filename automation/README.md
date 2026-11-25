@@ -27,6 +27,8 @@ One command builds the image, starts the stack, runs the tests and stops the sta
 ./gradlew systemTest
 ```
 
+Before the stack stops, the run saves its logs to `build/stack-logs/stack.log`. See [`deploy/`](../deploy/README.md).
+
 To run the tests against a stack that is already up, start it first. See [`deploy/`](../deploy/README.md). Then run the suite alone:
 
 ```
@@ -44,6 +46,8 @@ automation/suites/build/reports/allure/index.html
 ```
 
 It is one file that loads nothing from another host. Open it in a browser.
+
+CI publishes the report of the last run on `main`, also when that run is red: <https://xfeuer.github.io/maker-checker/>. Every run of CI also keeps its report as the artifact `allure-report`.
 
 A typed client sends its requests through `ApiTransport`. The transport tells its listeners about every request and its response, and the `allure` module attaches them to the test that made them. A client and a test hold no reporting code.
 
