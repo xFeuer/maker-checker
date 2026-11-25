@@ -2,6 +2,7 @@
 
 The system under test: an instant-payments platform on a double-entry ledger.
 
+- Its rules are in the [domain model](../docs/domain.md).
 - It implements the OpenAPI specifications in `contracts/`.
 - Its services carry their own unit and component tests.
 - It knows nothing about `automation/`.
