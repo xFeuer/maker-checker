@@ -721,12 +721,6 @@ components:
         status: 409
 
   schemas:
-    CustomerId:
-      type: string
-      format: uuid
-      description: The identifier of a customer, as the token of a user names it.
-      examples:
-        - 6d1f0c52-8a3b-4e7d-9c10-2b4a6e8f0a1c
     HoldId:
       type: string
       format: uuid
@@ -769,7 +763,7 @@ components:
         kind:
           $ref: "#/components/schemas/AccountKind"
         customerId:
-          $ref: "#/components/schemas/CustomerId"
+          $ref: "../common/components.yaml#/components/schemas/CustomerId"
         accountNumber:
           $ref: "../common/components.yaml#/components/schemas/AccountNumber"
         bookedBalance:
