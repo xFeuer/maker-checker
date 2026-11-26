@@ -328,7 +328,7 @@ components:
         before the request. That is longer than any allowance for clocks that
         differ. WRONG_SIGNATURE: a key that the provider does not publish
         signed the token, under the kid of the key that it does publish.
-        WRONG_ISSUER: the iss of the token is https://wrong-issuer.example.
+        WRONG_ISSUER: the iss of the token is `https://wrong-issuer.example`.
         WRONG_TYPE: the header of the token has the type JWT.
       enum:
         - EXPIRED

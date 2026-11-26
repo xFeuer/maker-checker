@@ -8,7 +8,11 @@ In banking, maker-checker is the control where one party makes a change and a se
 
 ## Status
 
-Phase 1: walking skeleton, done. The first service, `account-service`, answers `GET /v1/status` and runs in a container. The first Playwright test checks it from the outside. One command builds, starts, tests and stops all of it, and leaves a report that shows each request with its response. CI runs that command for every pull request and for `main`, and it publishes the [report of the last run on `main`](https://xfeuer.github.io/maker-checker/). Phase 2 comes next: the domain and its contracts. See the [roadmap](docs/roadmap.md).
+Phase 2: domain and contracts, in progress. The [domain model](docs/domain.md) states the rules of the platform. The contracts of its two services and of two simulators are written, with the hooks that a test needs, and they lint clean. The build renders them as an [API reference](https://xfeuer.github.io/maker-checker/api/), with a page for each [problem type](https://xfeuer.github.io/maker-checker/problems/). One rule of the linter is still to come.
+
+Phase 1: walking skeleton, done. The first service, `account-service`, answers `GET /v1/status` and runs in a container. The first Playwright test checks it from the outside. One command builds, starts, tests and stops all of it, and leaves a report that shows each request with its response. CI runs that command for every pull request and for `main`, and it publishes the [report of the last run on `main`](https://xfeuer.github.io/maker-checker/).
+
+Phase 3 comes next: the services. See the [roadmap](docs/roadmap.md).
 
 ## What it will show
 
@@ -35,7 +39,7 @@ One rule holds the design together: `automation/` never imports code from `platf
 | Concern | Choice |
 |---|---|
 | Platform | Java 25, Spring Boot 4 |
-| Contracts | OpenAPI 3.1, linted by vacuum |
+| Contracts | OpenAPI 3.1, linted and rendered by vacuum |
 | Automation | Playwright for Java, JUnit 6, Cucumber |
 | Report | Allure |
 | Build | Gradle 9, Kotlin DSL, convention plugins, version catalog |
@@ -53,6 +57,8 @@ On Windows, run `gradlew.bat build`. To fix formatting, run the `spotlessApply` 
 
 The build also lints the specifications in `contracts/` with vacuum. Gradle downloads it, so the JDK is still all that the build needs. See [ADR 0009](docs/adr/0009-openapi-3-1-contracts-linted-by-vacuum-in-the-build.md).
 
+vacuum renders the specifications too. The API reference is in `contracts/build/site/api/index.html`, and the pages of the problem types are next to it. See [ADR 0015](docs/adr/0015-an-api-reference-rendered-by-vacuum-next-to-the-report.md).
+
 ## Run the system tests
 
 Requires JDK 25 and Docker.
@@ -65,7 +71,9 @@ This one command builds the image, starts the stack, runs the system tests again
 
 The run ends with an Allure report, also when a test fails. It is one file, `automation/suites/build/reports/allure/index.html`, and it opens in a browser as it is. See [ADR 0007](docs/adr/0007-allure-behind-a-listener-of-the-framework.md).
 
-CI runs the same command. The report of the last run on `main` is online: <https://xfeuer.github.io/maker-checker/>. Every run also keeps its report and the logs of the stack as artifacts.
+CI runs the same command. The report of the last run on `main` is online: <https://xfeuer.github.io/maker-checker/>. The API reference of that run is next to it: <https://xfeuer.github.io/maker-checker/api/>. Every run also keeps its report and the logs of the stack as artifacts.
+
+After the system tests, `./gradlew site` puts the report, the API reference and the pages of the problem types into `build/site`, the way CI publishes them.
 
 ## Decisions
 
