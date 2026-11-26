@@ -16,6 +16,18 @@ rules:
   # A rule of vacuum that its recommended set leaves out.
   tag-description: true
 
+  # The rule of vacuum that holds an example to its schema, written out again to switch on one option of its
+  # function. With formatAssertions an example also keeps the format of its schema: a uuid is a UUID, and a
+  # date-time has a date, a time and an offset. vacuum leaves that option off. The level is the one of our rules.
+  oas3-valid-schema-example:
+    description: An example is valid against its schema, and it keeps the format that the schema names.
+    severity: error
+    given: "$"
+    then:
+      function: oasExampleSchema
+      functionOptions:
+        formatAssertions: true
+
   # ADR 0010
   error-responses-are-problems:
     description: An error response is a problem document, with the media type application/problem+json.
@@ -233,6 +245,25 @@ rules:
             examples:
               type: array
               minItems: 1
+  formats-are-known:
+    description: A format is one of this list. A contract that needs a new format adds it here and to README.md.
+    severity: error
+    # vacuum holds an example to each of these, and it ignores a format that it does not know. A new format also
+    # gets an example that breaks it, in ruleset-tests/breaks-oas3-valid-schema-example.yaml. A schema without a
+    # type does not get here: oas-missing-type of vacuum reports it.
+    given: "$..[?(@.type == 'string' || @.type == 'integer' || @.type == 'boolean' || @.type == 'array' || @.type == 'object')]"
+    then:
+      function: schema
+      functionOptions:
+        schema:
+          type: object
+          properties:
+            format:
+              enum:
+                - uuid
+                - date-time
+                - uri
+                - uri-reference
   example-descriptions-differ:
     description: No two examples of a specification have the same description.
     severity: error

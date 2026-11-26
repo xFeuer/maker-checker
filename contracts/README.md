@@ -160,6 +160,7 @@ Gradle downloads vacuum from its GitHub release and checks the archive against a
 | `examples-have-a-summary` | every example of a body has a summary and a value |
 | `schemas-have-a-description` | every schema that states its type has a description: in a property, in a parameter and in a header |
 | `values-have-an-example` | every string, integer, boolean and array has an example: in a property, in a parameter and in a header |
+| `formats-are-known` | every `format` is on the list of the ruleset: `uuid`, `date-time`, `uri` or `uri-reference` |
 | `example-descriptions-differ` | no two examples of a specification have the same description |
 | `discriminators-map-their-one-of` | the mapping of a `discriminator` names exactly the schemas of the `oneOf` next to it |
 | `operations-state-who-may-call` | every operation has a `security` block of its own |
@@ -171,9 +172,14 @@ Gradle downloads vacuum from its GitHub release and checks the archive against a
 
 The rules of vacuum already check the kebab-case of a path and the camelCase of a property. They also check that a `security` block names a scheme that the specification has. They check the descriptions and the examples only in part, and the rules of our own hold the rest.
 
-The ruleset switches on one rule of vacuum that its recommended set leaves out: `tag-description`, for a tag without a description.
+The ruleset changes two rules of vacuum:
 
-No rule checks the name of a parameter, or the conventions for identifiers, points in time and pages.
+- It switches on `tag-description`, for a tag without a description. The recommended set leaves that rule out.
+- It writes out `oas3-valid-schema-example` again, to switch on the option `formatAssertions`. That rule holds every example to its schema. With the option an example also keeps the `format` of its schema: a `uuid` has to be a UUID, and a `date-time` needs a date, a time and an offset. vacuum leaves the option off.
+
+vacuum ignores a format that it does not know, also a misspelled one. So `formats-are-known` allows only the formats that the contracts use, and the lint holds an example to each of them. It is strict for a `uuid` and a `date-time`, and loose for a `uri` and a `uri-reference`: a space in one of those passes.
+
+No rule checks the name of a parameter, or the conventions for identifiers, points in time and pages. A point in time with another offset than `Z` is a valid `date-time`, so it passes.
 
 ### The functions of our own
 
@@ -189,7 +195,8 @@ Three rules need a check that vacuum has no function for: `problem-statuses-matc
 
 - `keeps-the-rules.yaml` is a specification that follows every convention of an API and uses shared parts. It is linted with every rule, and vacuum has to report nothing.
 - `keeps-the-rules-of-hooks.yaml` is the same for hooks. It uses the shared clock.
-- Each rule of our own has a document that breaks it, and vacuum has to report exactly that rule. The rule of vacuum that the ruleset switches on has one too.
+- Each rule of our own has a document that breaks it, and vacuum has to report exactly that rule. The two rules of vacuum that the ruleset changes have one too.
+- The document for `oas3-valid-schema-example` has one bad example for each format on the list. A new format on the list gets one there.
 - A new rule comes with its document and its case in the suite.
 
 ### Raising vacuum
@@ -199,7 +206,7 @@ Dependabot does not follow GitHub releases, so this is done by hand.
 1. Set `vacuum` in `gradle/libs.versions.toml` to the new version.
 2. Replace `gradle/vacuum-checksums.txt` with the `checksums.txt` of that release.
 3. Run `./gradlew build`.
-4. Open `build/site/api/index.html` and look at a few pages: vacuum also renders the reference. Make the window small and scroll the catalog. The build adds a rule for that to a style sheet of vacuum 0.43.0, in `ScrollingCatalog`. It can go when the catalog scrolls without it.
+4. Open `build/site/api/index.html` and look at a few pages: vacuum also renders the reference. Make the window small and scroll the catalog. The build adds a rule for that to a style sheet of vacuum 0.43.0, in `ScrollingCatalog`. It can go when the catalog scrolls without it: [vacuum#1077](https://github.com/daveshanley/vacuum/issues/1077) is the report.
 
 ## The API reference
 

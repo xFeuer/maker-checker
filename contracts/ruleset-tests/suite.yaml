@@ -124,6 +124,12 @@ cases:
     expect:
       diagnostics:
         - rule: values-have-an-example
+  - id: breaks-formats-are-known
+    input: breaks-formats-are-known.yaml
+    rules: [formats-are-known]
+    expect:
+      diagnostics:
+        - rule: formats-are-known
   - id: breaks-example-descriptions-differ
     input: breaks-example-descriptions-differ.yaml
     rules: [example-descriptions-differ]
@@ -179,3 +185,18 @@ cases:
     expect:
       diagnostics:
         - rule: tag-description
+  # The rule of vacuum that the ruleset writes out again has a document with one bad example for each format on
+  # the list of formats-are-known. vacuum has to report each of them, at its place.
+  - id: breaks-oas3-valid-schema-example
+    input: breaks-oas3-valid-schema-example.yaml
+    rules: [oas3-valid-schema-example]
+    expect:
+      diagnostics:
+        - rule: oas3-valid-schema-example
+          path: "$.components.schemas['ThingId'].examples[0]"
+        - rule: oas3-valid-schema-example
+          path: "$.components.schemas['CreatedAt'].examples[0]"
+        - rule: oas3-valid-schema-example
+          path: "$.components.schemas['ProblemType'].examples[0]"
+        - rule: oas3-valid-schema-example
+          path: "$.components.schemas['ThingLocation'].examples[0]"

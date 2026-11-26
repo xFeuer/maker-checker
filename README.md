@@ -8,7 +8,7 @@ In banking, maker-checker is the control where one party makes a change and a se
 
 ## Status
 
-Phase 2: domain and contracts, in progress. The [domain model](docs/domain.md) states the rules of the platform. The contracts of its two services and of two simulators are written, with the hooks that a test needs, and they lint clean. The build renders them as an [API reference](https://xfeuer.github.io/maker-checker/api/), with a page for each [problem type](https://xfeuer.github.io/maker-checker/problems/). One rule of the linter is still to come.
+Phase 2: domain and contracts, done. The [domain model](docs/domain.md) states the rules of the platform. The contracts of its two services and of two simulators are written, with the hooks that a test needs, and they lint clean. The build renders them as an [API reference](https://xfeuer.github.io/maker-checker/api/), with a page for each [problem type](https://xfeuer.github.io/maker-checker/problems/).
 
 Phase 1: walking skeleton, done. The first service, `account-service`, answers `GET /v1/status` and runs in a container. The first Playwright test checks it from the outside. One command builds, starts, tests and stops all of it, and leaves a report that shows each request with its response. CI runs that command for every pull request and for `main`, and it publishes the [report of the last run on `main`](https://xfeuer.github.io/maker-checker/).
 
