@@ -27,12 +27,13 @@ Phase 3 comes next: the services. See the [roadmap](docs/roadmap.md).
 |---|---|
 | `automation/` | The framework and its suites. This is the point of the repository. |
 | `platform/` | The system under test: the services and the UI. |
+| `chassis/` | What every application of the stack is built on: the conventions of the contracts, in code. |
 | `contracts/` | OpenAPI specifications, the source of truth for both sides. |
 | `deploy/` | Docker Compose files and environment configuration. |
 | `build-logic/` | Gradle convention plugins and build checks, with their tests. |
 | `docs/` | The roadmap, the [domain model](docs/domain.md) and the architecture decision records. |
 
-One rule holds the design together: `automation/` never imports code from `platform/`. It knows the platform only through `contracts/` and the running system. The build enforces the rule: it fails when a project under `automation/` depends on a project under `platform/`. See [ADR 0002](docs/adr/0002-one-repository-with-a-black-box-boundary.md).
+One rule holds the design together: `automation/` never imports code from `platform/` or from `chassis/`. It knows the platform only through `contracts/` and the running system. The build enforces the rule: it fails when a project under `automation/` depends on a project under `platform/` or on the chassis. See [ADR 0002](docs/adr/0002-one-repository-with-a-black-box-boundary.md).
 
 ## Stack
 

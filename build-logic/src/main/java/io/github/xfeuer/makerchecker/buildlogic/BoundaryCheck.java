@@ -20,17 +20,20 @@ import org.gradle.api.tasks.VerificationException;
 import org.gradle.work.DisableCachingByDefault;
 
 /**
- * Fails when a project under {@code platform/} is among the dependencies of this project.
+ * Fails when code of the applications is among the dependencies of this project: a project under
+ * {@code platform/}, or the chassis that every application is built on.
  *
- * <p>The automation tests the platform from the outside, so it never depends on its code. See ADR 0002.
+ * <p>The automation tests the platform from the outside, so it never depends on its code. See ADR 0002 and
+ * ADR 0018.
  *
- * <p>The check reads resolved dependency graphs. It also finds a platform project that arrives through another
+ * <p>The check reads resolved dependency graphs. It also finds such a project when it arrives through another
  * project.
  */
 @DisableCachingByDefault(because = "The check has no outputs")
 public abstract class BoundaryCheck extends DefaultTask {
 
     private static final String PLATFORM = ":platform:";
+    private static final String CHASSIS = ":chassis";
 
     /** The resolved dependency graph of each configuration to check, by the name of the configuration. */
     @Input
@@ -41,7 +44,7 @@ public abstract class BoundaryCheck extends DefaultTask {
         // Several configurations usually share a path, so the report groups them under it.
         Map<String, List<String>> configurationsByPath = new TreeMap<>();
         new TreeMap<>(getGraphs().get()).forEach((configuration, root) -> {
-            for (String path : pathsToThePlatform(root)) {
+            for (String path : pathsAcrossTheBoundary(root)) {
                 configurationsByPath
                         .computeIfAbsent(path, key -> new ArrayList<>())
                         .add(configuration);
@@ -50,15 +53,15 @@ public abstract class BoundaryCheck extends DefaultTask {
         if (configurationsByPath.isEmpty()) {
             return;
         }
-        StringBuilder message = new StringBuilder("The automation must not depend on the platform."
+        StringBuilder message = new StringBuilder("The automation must not depend on the code of the applications."
                 + " See docs/adr/0002-one-repository-with-a-black-box-boundary.md.");
         configurationsByPath.forEach((path, configurations) ->
                 message.append("\n  ").append(path).append("\n      in ").append(String.join(", ", configurations)));
         throw new VerificationException(message.toString());
     }
 
-    /** Walks the graph breadth-first, so each platform project is reported with a shortest path to it. */
-    private static List<String> pathsToThePlatform(ResolvedComponentResult root) {
+    /** Walks the graph breadth-first, so each project of the applications is reported with a shortest path to it. */
+    private static List<String> pathsAcrossTheBoundary(ResolvedComponentResult root) {
         Map<ComponentIdentifier, ComponentIdentifier> cameFrom = new HashMap<>();
         cameFrom.put(root.getId(), root.getId());
         Deque<ResolvedComponentResult> queue = new ArrayDeque<>(List.of(root));
@@ -74,7 +77,7 @@ public abstract class BoundaryCheck extends DefaultTask {
                 if (cameFrom.putIfAbsent(selected.getId(), component.getId()) != null) {
                     continue;
                 }
-                if (isOnThePlatform(selected.getId())) {
+                if (isBehindTheBoundary(selected.getId())) {
                     paths.add(path(selected.getId(), cameFrom));
                 } else {
                     queue.addLast(selected);
@@ -84,9 +87,10 @@ public abstract class BoundaryCheck extends DefaultTask {
         return paths;
     }
 
-    private static boolean isOnThePlatform(ComponentIdentifier id) {
+    private static boolean isBehindTheBoundary(ComponentIdentifier id) {
         return id instanceof ProjectComponentIdentifier project
-                && project.getProjectPath().startsWith(PLATFORM);
+                && (project.getProjectPath().startsWith(PLATFORM)
+                        || project.getProjectPath().equals(CHASSIS));
     }
 
     /** A project shows as its path, as in a build script. Anything else shows as Gradle names it. */
