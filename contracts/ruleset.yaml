@@ -9,7 +9,13 @@ extends: [[spectral:oas, recommended]]
 
 # The conventions of README.md, as far as a linter can check them. Each rule has a document that breaks it, in
 # ruleset-tests/.
+#
+# Three rules need a check that vacuum has no function for. Their functions are JavaScript files in functions/,
+# and vacuum runs them by itself. It finds them when the lint gets that directory with --functions.
 rules:
+  # A rule of vacuum that its recommended set leaves out.
+  tag-description: true
+
   # ADR 0010
   error-responses-are-problems:
     description: An error response is a problem document, with the media type application/problem+json.
@@ -27,6 +33,22 @@ rules:
     then:
       field: default
       function: defined
+  problem-types-are-well-formed:
+    description: The type of a problem is about:blank, or a URL of this repository that ends in a name in kebab-case.
+    severity: error
+    given:
+      - "$.paths[*][get,put,post,delete].responses[*].content['application/problem+json'].examples[*].value.type"
+      - "$.paths[*][get,put,post,delete].responses[*].content[*].examples[*].value..problemType"
+    then:
+      function: pattern
+      functionOptions:
+        match: "^(about:blank|https://xfeuer\\.github\\.io/maker-checker/problems/[a-z]+(-[a-z]+)*)$"
+  problem-statuses-match-their-response:
+    description: The example of a problem states the status code of its response.
+    severity: error
+    given: "$.paths[*][get,put,post,delete].responses"
+    then:
+      function: problemStatusMatchesResponse
 
   # ADR 0011
   no-number-type:
@@ -134,6 +156,99 @@ rules:
       functionOptions:
         schema:
           const: true
+  operations-have-a-summary-and-a-description:
+    description: An operation has a summary and a description.
+    severity: error
+    given: "$.paths[*][get,put,post,delete]"
+    then:
+      function: schema
+      functionOptions:
+        schema:
+          type: object
+          required: [summary, description]
+          properties:
+            summary:
+              type: string
+              minLength: 1
+            description:
+              type: string
+              minLength: 1
+  bodies-have-an-example:
+    description: A request body and a response body have an example.
+    severity: error
+    given:
+      - "$.paths[*][get,put,post,delete].requestBody.content[*]"
+      - "$.paths[*][get,put,post,delete].responses[*].content[*]"
+    then:
+      function: schema
+      functionOptions:
+        schema:
+          type: object
+          required: [examples]
+          properties:
+            examples:
+              type: object
+              minProperties: 1
+  examples-have-a-summary:
+    description: An example of a body has a summary and a value.
+    severity: error
+    given:
+      - "$.paths[*][get,put,post,delete].requestBody.content[*].examples[*]"
+      - "$.paths[*][get,put,post,delete].responses[*].content[*].examples[*]"
+    then:
+      function: schema
+      functionOptions:
+        schema:
+          type: object
+          required: [summary, value]
+          properties:
+            summary:
+              type: string
+              minLength: 1
+  schemas-have-a-description:
+    description: A schema that states its type has a description. That holds for a property, a parameter and a header.
+    severity: error
+    given: "$..[?(@.type == 'string' || @.type == 'integer' || @.type == 'boolean' || @.type == 'array' || @.type == 'object')]"
+    then:
+      function: schema
+      functionOptions:
+        schema:
+          type: object
+          required: [description]
+          properties:
+            description:
+              type: string
+              minLength: 1
+  values-have-an-example:
+    description: A schema of one value or of an array has an example. That holds for a property, a parameter and a header.
+    severity: error
+    given: "$..[?(@.type == 'string' || @.type == 'integer' || @.type == 'boolean' || @.type == 'array')]"
+    then:
+      function: schema
+      functionOptions:
+        schema:
+          type: object
+          required: [examples]
+          properties:
+            examples:
+              type: array
+              minItems: 1
+  example-descriptions-differ:
+    description: No two examples of a specification have the same description.
+    severity: error
+    # The function reads the examples as the specification writes them.
+    resolved: false
+    given: "$.components.examples"
+    then:
+      function: descriptionsDiffer
+  discriminators-map-their-one-of:
+    description: The mapping of a discriminator names exactly the schemas of the oneOf next to it.
+    severity: error
+    # The function compares references, so the rule runs before they are resolved.
+    resolved: false
+    given: "$..[?(@.discriminator)]"
+    then:
+      function: mappingMatchesOneOf
 
   # ADR 0013
   operations-state-who-may-call:

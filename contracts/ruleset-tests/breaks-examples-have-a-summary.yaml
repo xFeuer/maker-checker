@@ -1,0 +1,30 @@
+openapi: 3.1.2
+
+info:
+  title: Breaks examples-have-a-summary
+  version: 0.1.0
+
+paths:
+  /v1/things:
+    get:
+      operationId: listThings
+      responses:
+        "200":
+          description: The things. The example of the body has no summary.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Thing"
+              examples:
+                thing:
+                  value: thing
+        default:
+          description: A problem.
+
+components:
+  schemas:
+    Thing:
+      type: string
+      description: A thing.
+      examples:
+        - thing

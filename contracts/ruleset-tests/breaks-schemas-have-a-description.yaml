@@ -1,0 +1,27 @@
+openapi: 3.1.2
+
+info:
+  title: Breaks schemas-have-a-description
+  version: 0.1.0
+
+paths:
+  /v1/things:
+    get:
+      operationId: listThings
+      responses:
+        "200":
+          description: The things.
+        default:
+          description: A problem.
+
+components:
+  schemas:
+    Thing:
+      type: object
+      description: A thing. Its name says nothing about itself.
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          examples:
+            - thing

@@ -2,6 +2,8 @@
 # expects. See README.md.
 version: 1
 ruleset: ../ruleset.yaml
+# The functions of our own that three of the rules use.
+functions: ../functions
 cases:
   # One specification keeps every rule. It is linted with all of them, the rules of vacuum included.
   - id: keeps-the-rules
@@ -26,6 +28,18 @@ cases:
     expect:
       diagnostics:
         - rule: operations-have-a-default-response
+  - id: breaks-problem-types-are-well-formed
+    input: breaks-problem-types-are-well-formed.yaml
+    rules: [problem-types-are-well-formed]
+    expect:
+      diagnostics:
+        - rule: problem-types-are-well-formed
+  - id: breaks-problem-statuses-match-their-response
+    input: breaks-problem-statuses-match-their-response.yaml
+    rules: [problem-statuses-match-their-response]
+    expect:
+      diagnostics:
+        - rule: problem-statuses-match-their-response
   - id: breaks-no-number-type
     input: breaks-no-number-type.yaml
     rules: [no-number-type]
@@ -80,6 +94,48 @@ cases:
     expect:
       diagnostics:
         - rule: sensitive-marker-is-true
+  - id: breaks-operations-have-a-summary-and-a-description
+    input: breaks-operations-have-a-summary-and-a-description.yaml
+    rules: [operations-have-a-summary-and-a-description]
+    expect:
+      diagnostics:
+        - rule: operations-have-a-summary-and-a-description
+  - id: breaks-bodies-have-an-example
+    input: breaks-bodies-have-an-example.yaml
+    rules: [bodies-have-an-example]
+    expect:
+      diagnostics:
+        - rule: bodies-have-an-example
+  - id: breaks-examples-have-a-summary
+    input: breaks-examples-have-a-summary.yaml
+    rules: [examples-have-a-summary]
+    expect:
+      diagnostics:
+        - rule: examples-have-a-summary
+  - id: breaks-schemas-have-a-description
+    input: breaks-schemas-have-a-description.yaml
+    rules: [schemas-have-a-description]
+    expect:
+      diagnostics:
+        - rule: schemas-have-a-description
+  - id: breaks-values-have-an-example
+    input: breaks-values-have-an-example.yaml
+    rules: [values-have-an-example]
+    expect:
+      diagnostics:
+        - rule: values-have-an-example
+  - id: breaks-example-descriptions-differ
+    input: breaks-example-descriptions-differ.yaml
+    rules: [example-descriptions-differ]
+    expect:
+      diagnostics:
+        - rule: example-descriptions-differ
+  - id: breaks-discriminators-map-their-one-of
+    input: breaks-discriminators-map-their-one-of.yaml
+    rules: [discriminators-map-their-one-of]
+    expect:
+      diagnostics:
+        - rule: discriminators-map-their-one-of
   - id: breaks-operations-state-who-may-call
     input: breaks-operations-state-who-may-call.yaml
     rules: [operations-state-who-may-call]
@@ -116,3 +172,10 @@ cases:
     expect:
       diagnostics:
         - rule: only-hooks-take-the-hooks-scope
+  # So does the rule of vacuum that the ruleset switches on.
+  - id: breaks-tag-description
+    input: breaks-tag-description.yaml
+    rules: [tag-description]
+    expect:
+      diagnostics:
+        - rule: tag-description
