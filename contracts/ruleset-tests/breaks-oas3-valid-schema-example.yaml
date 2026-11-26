@@ -1,0 +1,42 @@
+openapi: 3.1.2
+
+info:
+  title: Breaks oas3-valid-schema-example
+  version: 0.1.0
+
+paths:
+  /v1/things:
+    get:
+      operationId: listThings
+      responses:
+        "200":
+          description: The things.
+        default:
+          description: A problem.
+
+components:
+  schemas:
+    ThingId:
+      type: string
+      format: uuid
+      description: An identifier. Its example is a word.
+      examples:
+        - thing-1
+    CreatedAt:
+      type: string
+      format: date-time
+      description: A point in time. Its example has no offset.
+      examples:
+        - "2026-11-26T12:00:00"
+    ProblemType:
+      type: string
+      format: uri
+      description: The type of a problem. Its example has no scheme.
+      examples:
+        - /problems/thing-not-found
+    ThingLocation:
+      type: string
+      format: uri-reference
+      description: The path of a thing. Its example has a backslash.
+      examples:
+        - 'v1\things'
