@@ -28,3 +28,4 @@ An accepted ADR is not edited to change its decision. A new ADR supersedes it.
 | [0011](0011-money-as-a-decimal-string-with-its-currency.md) | Money as a decimal string with its currency | Accepted |
 | [0012](0012-an-idempotency-key-for-every-post.md) | An idempotency key for every POST | Accepted |
 | [0013](0013-access-tokens-from-an-identity-provider-outside-the-platform.md) | Access tokens from an identity provider outside the platform | Accepted |
+| [0014](0014-testability-hooks-in-the-services-off-by-default.md) | Testability hooks in the services, off by default | Accepted |

@@ -50,10 +50,10 @@ val lintSpecifications =
         vacuumHome = unpackVacuum.flatMap { it.destination }
         executable = platform.map { it.executable() }
         ruleset = layout.projectDirectory.file("ruleset.yaml")
-        // Each service has a directory with its specification.
+        // Each service has a directory with its API and, next to it, its testability hooks: ADR 0014.
         specifications.from(
             fileTree(layout.projectDirectory) {
-                include("*/openapi.yaml")
+                include("*/openapi.yaml", "*/hooks.yaml")
                 exclude("build/**")
             },
         )

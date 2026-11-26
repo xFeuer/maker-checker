@@ -1,0 +1,27 @@
+openapi: 3.1.2
+
+info:
+  title: Breaks hooks-need-the-hooks-scope
+  version: 0.1.0
+
+paths:
+  /hooks/v1/things/{thingId}:
+    put:
+      operationId: seedThing
+      security:
+        - AccessToken:
+            - accounts:read
+      responses:
+        "204":
+          description: The thing exists. The hook above takes a scope of a user, and not hooks:use.
+        "401":
+          description: A problem.
+        "403":
+          description: A problem.
+        default:
+          description: A problem.
+
+components:
+  securitySchemes:
+    AccessToken:
+      $ref: "../common/components.yaml#/components/securitySchemes/AccessToken"

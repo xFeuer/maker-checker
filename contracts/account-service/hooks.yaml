@@ -1,0 +1,111 @@
+openapi: 3.1.2
+
+info:
+  title: account-service hooks
+  summary: What a test needs from account-service, and production never has.
+  description: >-
+    The testability hooks of account-service. The service has them only when
+    it starts with its hooks switched on, as the local stack does. Every hook
+    needs a token with the scope hooks:use. See ADR 0014.
+  version: 0.1.0
+  license:
+    name: MIT
+    identifier: MIT
+
+servers:
+  - url: http://localhost:8080
+    description: The local stack, as `deploy/compose.yaml` starts it.
+
+tags:
+  - name: Clock
+    description: The clock of the rules, which a test can set.
+  - name: Seeding
+    description: What onboarding would create, and a test creates here.
+
+paths:
+  /hooks/v1/clock:
+    $ref: "../common/components.yaml#/components/pathItems/Clock"
+  /hooks/v1/accounts/{accountId}:
+    put:
+      operationId: seedAccount
+      summary: Seed an account.
+      description: >-
+        Creates an account of a customer, as onboarding would (CUS-5). The
+        test chooses the identifier. The account starts empty, and the service
+        gives it its account number. A repeat for the same customer changes
+        nothing.
+      tags:
+        - Seeding
+      security:
+        - AccessToken:
+            - hooks:use
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          description: The identifier that the account gets.
+          schema:
+            type: string
+            format: uuid
+            description: A UUID.
+            examples:
+              - 9b2f7c1e-3a54-4d0b-8f6e-5c1a2b3d4e5f
+      requestBody:
+        description: The customer that holds the account.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccountSeed"
+            examples:
+              account:
+                summary: An account of a customer
+                value:
+                  customerId: 6d1f0c52-8a3b-4e7d-9c10-2b4a6e8f0a1c
+      responses:
+        "204":
+          description: The account exists.
+        "400":
+          $ref: "../common/components.yaml#/components/responses/InvalidRequest"
+        "401":
+          $ref: "../common/components.yaml#/components/responses/Unauthenticated"
+        "403":
+          $ref: "../common/components.yaml#/components/responses/InsufficientScope"
+        "409":
+          description: The account exists already, and another customer holds it.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "../common/components.yaml#/components/schemas/Problem"
+              examples:
+                accountOfAnotherCustomer:
+                  $ref: "#/components/examples/AccountOfAnotherCustomer"
+        default:
+          $ref: "../common/components.yaml#/components/responses/Problem"
+
+components:
+  securitySchemes:
+    AccessToken:
+      $ref: "../common/components.yaml#/components/securitySchemes/AccessToken"
+  examples:
+    AccountOfAnotherCustomer:
+      summary: An account that another customer holds
+      description: The problem of a hook that names an account of another customer.
+      value:
+        type: https://xfeuer.github.io/maker-checker/problems/account-of-another-customer
+        title: Another customer holds the account.
+        status: 409
+  schemas:
+    AccountSeed:
+      type: object
+      description: What a test sends to seed an account.
+      additionalProperties: false
+      required:
+        - customerId
+      properties:
+        customerId:
+          type: string
+          format: uuid
+          description: The identifier of the customer that holds the account.
+          examples:
+            - 6d1f0c52-8a3b-4e7d-9c10-2b4a6e8f0a1c
