@@ -5,6 +5,7 @@ The system under test: an instant-payments platform on a double-entry ledger.
 - Its rules are in the [domain model](../docs/domain.md).
 - It implements the OpenAPI specifications in `contracts/`.
 - Its services carry their own unit and component tests.
+- Its services are built on the [chassis](../chassis/README.md), which keeps the conventions of the contracts for them. Every error response is a problem document.
 - Each service keeps its data in a PostgreSQL server of its own. See [ADR 0016](../docs/adr/0016-a-postgresql-database-for-each-service.md).
 - It knows nothing about `automation/`.
 

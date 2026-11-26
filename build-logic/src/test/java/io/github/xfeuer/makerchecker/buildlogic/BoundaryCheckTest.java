@@ -44,7 +44,7 @@ class BoundaryCheckTest {
                 .extracting(BuildTask::getOutcome)
                 .isEqualTo(TaskOutcome.FAILED);
         assertThat(result.getOutput())
-                .contains("The automation must not depend on the platform.")
+                .contains("The automation must not depend on the code of the applications.")
                 .contains(":automation:suites -> :platform:account-service")
                 .contains("in compileClasspath, runtimeClasspath, testCompileClasspath, testRuntimeClasspath");
     }
@@ -58,6 +58,19 @@ class BoundaryCheckTest {
         BuildResult result = check().buildAndFail();
 
         assertThat(result.getOutput()).contains(":automation:suites -> :shared:model -> :platform:account-service");
+    }
+
+    @Test
+    void failsWhenAnAutomationProjectDependsOnTheChassis() throws IOException {
+        project(":chassis");
+        checkedProject(":automation:suites", ":chassis");
+
+        BuildResult result = check().buildAndFail();
+
+        assertThat(result.task(":automation:suites:checkBoundary"))
+                .extracting(BuildTask::getOutcome)
+                .isEqualTo(TaskOutcome.FAILED);
+        assertThat(result.getOutput()).contains(":automation:suites -> :chassis");
     }
 
     private GradleRunner check() {

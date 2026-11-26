@@ -3,6 +3,8 @@ plugins {
 }
 
 dependencies {
+    implementation(project(":chassis"))
+
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     implementation("org.springframework.boot:spring-boot-starter-jdbc")
     implementation("org.springframework.boot:spring-boot-starter-webmvc")
