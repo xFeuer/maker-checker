@@ -1,0 +1,150 @@
+openapi: 3.1.2
+
+info:
+  title: payment-service hooks
+  summary: What a test needs from payment-service, and production never has.
+  description: >-
+    The testability hooks of payment-service. The service has them only when
+    it starts with its hooks switched on, as the local stack does. Every hook
+    needs a token with the scope hooks:use. See ADR 0014.
+  version: 0.1.0
+  license:
+    name: MIT
+    identifier: MIT
+
+servers:
+  - url: http://localhost:8081
+    description: The local stack.
+
+tags:
+  - name: Clock
+    description: The clock of the rules, which a test can set.
+  - name: Seeding
+    description: What onboarding would create, and a test creates here.
+
+paths:
+  /hooks/v1/clock:
+    $ref: "../common/components.yaml#/components/pathItems/Clock"
+  /hooks/v1/customers/{customerId}/approval-limit:
+    put:
+      operationId: seedApprovalLimit
+      summary: Seed the approval limit of a customer.
+      description: >-
+        Sets the approval limit of a customer, as onboarding would (APR-1).
+        The test chooses the identifier of the customer. A repeat changes
+        nothing, and another amount replaces the limit.
+      tags:
+        - Seeding
+      security:
+        - AccessToken:
+            - hooks:use
+      parameters:
+        - name: customerId
+          in: path
+          required: true
+          description: The identifier of the customer.
+          schema:
+            type: string
+            format: uuid
+            description: The UUID of the customer.
+            examples:
+              - 6d1f0c52-8a3b-4e7d-9c10-2b4a6e8f0a1c
+      requestBody:
+        description: The amount above which a payment of the customer waits for approval.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "../common/components.yaml#/components/schemas/Money"
+            examples:
+              oneThousand:
+                summary: A limit of 1,000 reais
+                value:
+                  amount: "1000.00"
+                  currency: BRL
+      responses:
+        "204":
+          description: The customer has the approval limit.
+        "400":
+          $ref: "../common/components.yaml#/components/responses/InvalidRequest"
+        "401":
+          $ref: "../common/components.yaml#/components/responses/Unauthenticated"
+        "403":
+          $ref: "../common/components.yaml#/components/responses/InsufficientScope"
+        default:
+          $ref: "../common/components.yaml#/components/responses/Problem"
+  /hooks/v1/accounts/{accountId}/limits:
+    put:
+      operationId: seedLimits
+      summary: Seed the limits of an account.
+      description: >-
+        Sets the three limits of an account, as onboarding would (LIM-1). A
+        repeat changes nothing, and other amounts replace the limits.
+      tags:
+        - Seeding
+      security:
+        - AccessToken:
+            - hooks:use
+      parameters:
+        - name: accountId
+          in: path
+          required: true
+          description: The identifier of the account.
+          schema:
+            type: string
+            format: uuid
+            description: The UUID of the account.
+            examples:
+              - 9b2f7c1e-3a54-4d0b-8f6e-5c1a2b3d4e5f
+      requestBody:
+        description: The limits of the account.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Limits"
+            examples:
+              lowerAtNight:
+                summary: Limits with a lower one for the night
+                value:
+                  paymentLimit:
+                    amount: "5000.00"
+                    currency: BRL
+                  dailyLimit:
+                    amount: "20000.00"
+                    currency: BRL
+                  nightLimit:
+                    amount: "1000.00"
+                    currency: BRL
+      responses:
+        "204":
+          description: The account has the limits.
+        "400":
+          $ref: "../common/components.yaml#/components/responses/InvalidRequest"
+        "401":
+          $ref: "../common/components.yaml#/components/responses/Unauthenticated"
+        "403":
+          $ref: "../common/components.yaml#/components/responses/InsufficientScope"
+        default:
+          $ref: "../common/components.yaml#/components/responses/Problem"
+
+components:
+  securitySchemes:
+    AccessToken:
+      $ref: "../common/components.yaml#/components/securitySchemes/AccessToken"
+  schemas:
+    Limits:
+      type: object
+      description: The limits of an account (LIM-1).
+      additionalProperties: false
+      required:
+        - paymentLimit
+        - dailyLimit
+        - nightLimit
+      properties:
+        paymentLimit:
+          $ref: "../common/components.yaml#/components/schemas/Money"
+        dailyLimit:
+          $ref: "../common/components.yaml#/components/schemas/Money"
+        nightLimit:
+          $ref: "../common/components.yaml#/components/schemas/Money"

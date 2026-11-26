@@ -1,0 +1,27 @@
+openapi: 3.1.2
+
+info:
+  title: Breaks only-hooks-take-the-hooks-scope
+  version: 0.1.0
+
+paths:
+  /v1/things:
+    get:
+      operationId: listThings
+      security:
+        - AccessToken:
+            - hooks:use
+      responses:
+        "200":
+          description: The things. The operation above is no hook, and it takes the scope of the hooks.
+        "401":
+          description: A problem.
+        "403":
+          description: A problem.
+        default:
+          description: A problem.
+
+components:
+  securitySchemes:
+    AccessToken:
+      $ref: "../common/components.yaml#/components/securitySchemes/AccessToken"

@@ -8,6 +8,11 @@ cases:
     input: keeps-the-rules.yaml
     expect:
       diagnostics: []
+  # So does one specification of hooks.
+  - id: keeps-the-rules-of-hooks
+    input: keeps-the-rules-of-hooks.yaml
+    expect:
+      diagnostics: []
   # Each rule of ours has a document that breaks it and nothing else.
   - id: breaks-error-responses-are-problems
     input: breaks-error-responses-are-problems.yaml
@@ -99,3 +104,15 @@ cases:
     expect:
       diagnostics:
         - rule: operations-with-a-token-have-401-and-403
+  - id: breaks-hooks-need-the-hooks-scope
+    input: breaks-hooks-need-the-hooks-scope.yaml
+    rules: [hooks-need-the-hooks-scope]
+    expect:
+      diagnostics:
+        - rule: hooks-need-the-hooks-scope
+  - id: breaks-only-hooks-take-the-hooks-scope
+    input: breaks-only-hooks-take-the-hooks-scope.yaml
+    rules: [only-hooks-take-the-hooks-scope]
+    expect:
+      diagnostics:
+        - rule: only-hooks-take-the-hooks-scope

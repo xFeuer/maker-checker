@@ -1,0 +1,87 @@
+openapi: 3.1.2
+
+info:
+  title: Hooks that keep the rules
+  summary: The sample of a hooks specification that the tests of the ruleset lint with every rule.
+  description: >-
+    It follows every convention for hooks and uses the shared clock. It is not
+    the contract of a service.
+  version: 0.1.0
+  license:
+    name: MIT
+    identifier: MIT
+
+servers:
+  - url: http://localhost:8080
+    description: The local stack.
+
+tags:
+  - name: Clock
+    description: The clock of the rules, which a test can set.
+  - name: Seeding
+    description: Things that a test creates to show the conventions.
+
+paths:
+  /hooks/v1/clock:
+    $ref: "../common/components.yaml#/components/pathItems/Clock"
+  /hooks/v1/samples/{sampleId}:
+    put:
+      operationId: seedSample
+      summary: Seed a sample.
+      description: Creates a sample with an identifier that the test chooses. A repeat changes nothing.
+      tags:
+        - Seeding
+      security:
+        - AccessToken:
+            - hooks:use
+      parameters:
+        - name: sampleId
+          in: path
+          required: true
+          description: The identifier that the sample gets.
+          schema:
+            type: string
+            format: uuid
+            description: A UUID.
+            examples:
+              - 3f0a8c3e-5b1d-4c58-9a66-2f1d6f0b7e21
+      requestBody:
+        description: The sample to seed.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SampleSeed"
+            examples:
+              cheap:
+                summary: A cheap sample
+                value:
+                  price:
+                    amount: "10.50"
+                    currency: BRL
+      responses:
+        "204":
+          description: The sample exists.
+        "400":
+          $ref: "../common/components.yaml#/components/responses/InvalidRequest"
+        "401":
+          $ref: "../common/components.yaml#/components/responses/Unauthenticated"
+        "403":
+          $ref: "../common/components.yaml#/components/responses/InsufficientScope"
+        default:
+          $ref: "../common/components.yaml#/components/responses/Problem"
+
+components:
+  securitySchemes:
+    AccessToken:
+      $ref: "../common/components.yaml#/components/securitySchemes/AccessToken"
+  schemas:
+    SampleSeed:
+      type: object
+      description: What a test sends to seed a sample.
+      additionalProperties: false
+      required:
+        - price
+      properties:
+        price:
+          $ref: "../common/components.yaml#/components/schemas/Money"

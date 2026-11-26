@@ -6,7 +6,8 @@ info:
   description: >-
     A specification refers to these parts and does not copy them. They hold
     what the conventions of the contracts fix for every service: the access
-    token, the problem document, money and the idempotency key.
+    token, the problem document, money, the idempotency key and the clock of
+    the hooks.
   version: 0.1.0
   license:
     name: MIT
@@ -21,6 +22,100 @@ components:
         the Authorization header. The scopes of the token say what the caller
         may do, and an operation names the scopes that it needs. See ADR 0013.
       openIdConnectUrl: http://localhost:8083/.well-known/openid-configuration
+
+  pathItems:
+    Clock:
+      get:
+        operationId: getClock
+        summary: Read the clock.
+        description: >-
+          Reads the clock of the rules: the instant that the service takes as
+          now, and whether a test has set it. See ADR 0014.
+        tags:
+          - Clock
+        security:
+          - AccessToken:
+              - hooks:use
+        responses:
+          "200":
+            description: The clock.
+            content:
+              application/json:
+                schema:
+                  $ref: "#/components/schemas/Clock"
+                examples:
+                  standing:
+                    $ref: "#/components/examples/StandingClock"
+                  running:
+                    $ref: "#/components/examples/RunningClock"
+          "401":
+            $ref: "#/components/responses/Unauthenticated"
+          "403":
+            $ref: "#/components/responses/InsufficientScope"
+          default:
+            $ref: "#/components/responses/Problem"
+      put:
+        operationId: setClock
+        summary: Set the clock.
+        description: >-
+          Sets the clock of the rules to an instant. The clock stands still
+          there until a test sets it again or resets it. A repeat changes
+          nothing.
+        tags:
+          - Clock
+        security:
+          - AccessToken:
+              - hooks:use
+        requestBody:
+          description: The instant that the clock shows from now on.
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClockSetting"
+              examples:
+                lastInstantOfADay:
+                  summary: The last millisecond before a night starts
+                  value:
+                    now: "2026-11-25T22:59:59.999Z"
+        responses:
+          "200":
+            description: The clock stands at the instant.
+            content:
+              application/json:
+                schema:
+                  $ref: "#/components/schemas/Clock"
+                examples:
+                  standing:
+                    $ref: "#/components/examples/StandingClock"
+          "400":
+            $ref: "#/components/responses/InvalidRequest"
+          "401":
+            $ref: "#/components/responses/Unauthenticated"
+          "403":
+            $ref: "#/components/responses/InsufficientScope"
+          default:
+            $ref: "#/components/responses/Problem"
+      delete:
+        operationId: resetClock
+        summary: Reset the clock.
+        description: >-
+          Lets the clock of the rules run with real time again. A repeat
+          changes nothing.
+        tags:
+          - Clock
+        security:
+          - AccessToken:
+              - hooks:use
+        responses:
+          "204":
+            description: The clock runs with real time.
+          "401":
+            $ref: "#/components/responses/Unauthenticated"
+          "403":
+            $ref: "#/components/responses/InsufficientScope"
+          default:
+            $ref: "#/components/responses/Problem"
 
   parameters:
     IdempotencyKey:
@@ -139,6 +234,16 @@ components:
         type: https://xfeuer.github.io/maker-checker/problems/request-in-progress
         title: The first request with this idempotency key is still being handled.
         status: 409
+    StandingClock:
+      summary: A clock that a test has set
+      value:
+        now: "2026-11-25T22:59:59.999Z"
+        standing: true
+    RunningClock:
+      summary: A clock that runs with real time
+      value:
+        now: "2026-11-25T18:30:00.482Z"
+        standing: false
 
   schemas:
     Problem:
@@ -233,3 +338,37 @@ components:
             - BRL
           examples:
             - BRL
+    Clock:
+      type: object
+      description: The clock of the rules of a service. See ADR 0014.
+      additionalProperties: false
+      required:
+        - now
+        - standing
+      properties:
+        now:
+          type: string
+          format: date-time
+          description: The instant that the service takes as now, in UTC.
+          examples:
+            - "2026-11-25T22:59:59.999Z"
+        standing:
+          type: boolean
+          description: >-
+            True when a test has set the clock: it stands still. False when it
+            runs with real time.
+          examples:
+            - true
+    ClockSetting:
+      type: object
+      description: What a test sends to set the clock.
+      additionalProperties: false
+      required:
+        - now
+      properties:
+        now:
+          type: string
+          format: date-time
+          description: The instant to set the clock to, in UTC.
+          examples:
+            - "2026-11-25T22:59:59.999Z"

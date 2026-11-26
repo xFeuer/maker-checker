@@ -75,13 +75,13 @@ rules:
 
   # README.md
   paths-start-with-a-version:
-    description: A path starts with the version of the API, such as /v1.
+    description: A path starts with the version of the API, such as /v1. The path of a hook has /hooks before it.
     severity: error
     given: "$.paths[*]~"
     then:
       function: pattern
       functionOptions:
-        match: "^/v[1-9][0-9]*/"
+        match: "^(/hooks)?/v[1-9][0-9]*/"
   operation-ids-in-camel-case:
     description: An operationId is in camelCase.
     severity: error
@@ -169,6 +169,7 @@ rules:
           - payments:create
           - payments:cancel
           - payments:decide
+          - hooks:use
   operations-with-a-token-have-401-and-403:
     description: An operation that needs a token has a 401 response and a 403 response.
     severity: error
@@ -187,3 +188,34 @@ rules:
             properties:
               responses:
                 required: ["401", "403"]
+
+  # ADR 0014
+  hooks-need-the-hooks-scope:
+    description: An operation under /hooks needs a token with the scope hooks:use.
+    severity: error
+    given: "$.paths[?(@property.match(/^\\/hooks\\//))][get,put,post,delete]"
+    then:
+      function: schema
+      functionOptions:
+        schema:
+          type: object
+          required: [security]
+          properties:
+            security:
+              type: array
+              minItems: 1
+              items:
+                type: object
+                minProperties: 1
+                additionalProperties:
+                  type: array
+                  contains:
+                    const: hooks:use
+  only-hooks-take-the-hooks-scope:
+    description: The scope hooks:use opens a hook and nothing else.
+    severity: error
+    given: "$.paths[?(@property.match(/^\\/v[1-9]/))][get,put,post,delete].security[*][*][*]"
+    then:
+      function: pattern
+      functionOptions:
+        notMatch: "^hooks:use$"

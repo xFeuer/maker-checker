@@ -272,7 +272,7 @@ The [README](../README.md) names nine test problems. Each of them has rules that
 
 ## What a test has to control
 
-Some rules cannot be tested from the outside without help. The [roadmap](roadmap.md) calls that help the testability hooks, and an ADR of their own decides how they work.
+Some rules cannot be tested from the outside without help. The [roadmap](roadmap.md) calls that help the testability hooks, and [ADR 0014](adr/0014-testability-hooks-in-the-services-off-by-default.md) decides how they work.
 
 | A test needs | Because of |
 |---|---|
