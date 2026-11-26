@@ -6,7 +6,9 @@ info:
   description: >-
     The service that owns the accounts and the ledger of the platform. It
     keeps the balances, the holds and the ledger transactions, and it does not
-    know why money moves.
+    know why money moves. A user reads the accounts of their customer here.
+    The holds and the ledger are for payment-service, and for a test that
+    checks the ledger. See ADR 0008.
   version: 0.1.0
   license:
     name: MIT
@@ -19,6 +21,12 @@ servers:
 tags:
   - name: Status
     description: Whether the service is up and which build it runs.
+  - name: Accounts
+    description: The accounts with their balances.
+  - name: Holds
+    description: Amounts that are reserved on an account, each for one payment.
+  - name: Ledger
+    description: The ledger transactions, which are the only way that money moves.
 
 paths:
   /v1/status:
@@ -46,8 +54,672 @@ paths:
                     version: 0.1.0
         default:
           $ref: "../common/components.yaml#/components/responses/Problem"
+  /v1/accounts:
+    get:
+      operationId: listAccounts
+      summary: List the accounts.
+      description: >-
+        Lists accounts in pages, in the order in which they were created. A
+        user gets the accounts of their customer. A caller with ledger:read
+        gets every account, the house accounts included.
+      tags:
+        - Accounts
+      security:
+        - AccessToken:
+            - accounts:read
+        - AccessToken:
+            - ledger:read
+      parameters:
+        - $ref: "#/components/parameters/AccountNumberFilter"
+        - $ref: "#/components/parameters/AccountKindFilter"
+        - $ref: "../common/components.yaml#/components/parameters/PageLimit"
+        - $ref: "../common/components.yaml#/components/parameters/PageCursor"
+      responses:
+        "200":
+          description: One page of accounts.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountPage"
+              examples:
+                lastPage:
+                  $ref: "#/components/examples/AccountPage"
+        "400":
+          $ref: "../common/components.yaml#/components/responses/InvalidRequest"
+        "401":
+          $ref: "../common/components.yaml#/components/responses/Unauthenticated"
+        "403":
+          $ref: "../common/components.yaml#/components/responses/InsufficientScope"
+        default:
+          $ref: "../common/components.yaml#/components/responses/Problem"
+  /v1/accounts/{accountId}:
+    get:
+      operationId: getAccount
+      summary: Read an account.
+      description: >-
+        Reads one account with its balances. A user reads an account of their
+        customer: to a user, an account of another customer does not exist
+        (CUS-4). A caller with ledger:read reads any account.
+      tags:
+        - Accounts
+      security:
+        - AccessToken:
+            - accounts:read
+        - AccessToken:
+            - ledger:read
+      parameters:
+        - $ref: "#/components/parameters/AccountIdInPath"
+      responses:
+        "200":
+          description: The account.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+              examples:
+                customerAccount:
+                  $ref: "#/components/examples/CustomerAccount"
+                settlementAccount:
+                  $ref: "#/components/examples/SettlementAccount"
+        "401":
+          $ref: "../common/components.yaml#/components/responses/Unauthenticated"
+        "403":
+          $ref: "../common/components.yaml#/components/responses/InsufficientScope"
+        "404":
+          $ref: "../common/components.yaml#/components/responses/NotFound"
+        default:
+          $ref: "../common/components.yaml#/components/responses/Problem"
+  /v1/holds:
+    get:
+      operationId: listHolds
+      summary: List the holds.
+      description: >-
+        Lists holds in pages, in the order in which they were placed, whatever
+        their state.
+      tags:
+        - Holds
+      security:
+        - AccessToken:
+            - ledger:read
+      parameters:
+        - $ref: "#/components/parameters/HoldStateFilter"
+        - $ref: "#/components/parameters/HoldAccountFilter"
+        - $ref: "../common/components.yaml#/components/parameters/PageLimit"
+        - $ref: "../common/components.yaml#/components/parameters/PageCursor"
+      responses:
+        "200":
+          description: One page of holds.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HoldPage"
+              examples:
+                lastPage:
+                  $ref: "#/components/examples/HoldPage"
+        "400":
+          $ref: "../common/components.yaml#/components/responses/InvalidRequest"
+        "401":
+          $ref: "../common/components.yaml#/components/responses/Unauthenticated"
+        "403":
+          $ref: "../common/components.yaml#/components/responses/InsufficientScope"
+        default:
+          $ref: "../common/components.yaml#/components/responses/Problem"
+  /v1/holds/{holdId}:
+    get:
+      operationId: getHold
+      summary: Read a hold.
+      description: Reads one hold. A hold that has ended stays readable.
+      tags:
+        - Holds
+      security:
+        - AccessToken:
+            - ledger:read
+      parameters:
+        - $ref: "#/components/parameters/HoldIdInPath"
+      responses:
+        "200":
+          description: The hold.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Hold"
+              examples:
+                open:
+                  $ref: "#/components/examples/OpenHold"
+                captured:
+                  $ref: "#/components/examples/CapturedHold"
+        "401":
+          $ref: "../common/components.yaml#/components/responses/Unauthenticated"
+        "403":
+          $ref: "../common/components.yaml#/components/responses/InsufficientScope"
+        "404":
+          $ref: "../common/components.yaml#/components/responses/NotFound"
+        default:
+          $ref: "../common/components.yaml#/components/responses/Problem"
+    put:
+      operationId: placeHold
+      summary: Place a hold.
+      description: >-
+        Reserves an amount of one account (LED-4). The caller chooses the
+        identifier, and payment-service takes the identifier of the payment. A
+        repeat with the same account and the same amount changes nothing
+        (LED-7), and the response shows the hold as it is now. A hold that the
+        available balance of a customer account does not cover is refused
+        (LED-5).
+      tags:
+        - Holds
+      security:
+        - AccessToken:
+            - ledger:write
+      parameters:
+        - $ref: "#/components/parameters/HoldIdInPath"
+      requestBody:
+        description: The account and the amount to reserve.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewHold"
+            examples:
+              amountPlusFee:
+                summary: The amount of an outbound payment plus its fee
+                value:
+                  accountId: 9b2f7c1e-3a54-4d0b-8f6e-5c1a2b3d4e5f
+                  amount:
+                    amount: "202.50"
+                    currency: BRL
+      responses:
+        "200":
+          description: The hold, placed now or by an earlier request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Hold"
+              examples:
+                open:
+                  $ref: "#/components/examples/OpenHold"
+        "400":
+          $ref: "../common/components.yaml#/components/responses/InvalidRequest"
+        "401":
+          $ref: "../common/components.yaml#/components/responses/Unauthenticated"
+        "403":
+          $ref: "../common/components.yaml#/components/responses/InsufficientScope"
+        "409":
+          description: A hold with this identifier exists, for another account or another amount.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "../common/components.yaml#/components/schemas/Problem"
+              examples:
+                holdExists:
+                  $ref: "#/components/examples/HoldExists"
+        "422":
+          description: The hold breaks a rule of the ledger, and nothing is reserved.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "../common/components.yaml#/components/schemas/Problem"
+              examples:
+                insufficientFunds:
+                  $ref: "#/components/examples/InsufficientFunds"
+                unknownAccount:
+                  $ref: "#/components/examples/UnknownAccount"
+        default:
+          $ref: "../common/components.yaml#/components/responses/Problem"
+  /v1/holds/{holdId}/release:
+    put:
+      operationId: releaseHold
+      summary: Release a hold.
+      description: >-
+        Ends an open hold without a ledger transaction, so that its amount is
+        available again (LED-6). The hold stays readable. A repeat changes
+        nothing.
+      tags:
+        - Holds
+      security:
+        - AccessToken:
+            - ledger:write
+      parameters:
+        - $ref: "#/components/parameters/HoldIdInPath"
+      responses:
+        "200":
+          description: The hold, released now or by an earlier request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Hold"
+              examples:
+                released:
+                  $ref: "#/components/examples/ReleasedHold"
+        "401":
+          $ref: "../common/components.yaml#/components/responses/Unauthenticated"
+        "403":
+          $ref: "../common/components.yaml#/components/responses/InsufficientScope"
+        "404":
+          $ref: "../common/components.yaml#/components/responses/NotFound"
+        "409":
+          description: A ledger transaction has captured the hold, so nothing is left to release.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "../common/components.yaml#/components/schemas/Problem"
+              examples:
+                holdNotOpen:
+                  $ref: "#/components/examples/HoldNotOpen"
+        default:
+          $ref: "../common/components.yaml#/components/responses/Problem"
+  /v1/ledger-transactions:
+    get:
+      operationId: listLedgerTransactions
+      summary: List the ledger transactions.
+      description: >-
+        Lists ledger transactions in pages, in the order in which they were
+        booked. With the filter, the list is the history of one account.
+      tags:
+        - Ledger
+      security:
+        - AccessToken:
+            - ledger:read
+      parameters:
+        - $ref: "#/components/parameters/EntryAccountFilter"
+        - $ref: "../common/components.yaml#/components/parameters/PageLimit"
+        - $ref: "../common/components.yaml#/components/parameters/PageCursor"
+      responses:
+        "200":
+          description: One page of ledger transactions.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LedgerTransactionPage"
+              examples:
+                lastPage:
+                  $ref: "#/components/examples/LedgerTransactionPage"
+        "400":
+          $ref: "../common/components.yaml#/components/responses/InvalidRequest"
+        "401":
+          $ref: "../common/components.yaml#/components/responses/Unauthenticated"
+        "403":
+          $ref: "../common/components.yaml#/components/responses/InsufficientScope"
+        default:
+          $ref: "../common/components.yaml#/components/responses/Problem"
+  /v1/ledger-transactions/{ledgerTransactionId}:
+    get:
+      operationId: getLedgerTransaction
+      summary: Read a ledger transaction.
+      description: Reads one ledger transaction with its entries.
+      tags:
+        - Ledger
+      security:
+        - AccessToken:
+            - ledger:read
+      parameters:
+        - $ref: "#/components/parameters/LedgerTransactionIdInPath"
+      responses:
+        "200":
+          description: The ledger transaction.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LedgerTransaction"
+              examples:
+                outboundPayment:
+                  $ref: "#/components/examples/OutboundLedgerTransaction"
+        "401":
+          $ref: "../common/components.yaml#/components/responses/Unauthenticated"
+        "403":
+          $ref: "../common/components.yaml#/components/responses/InsufficientScope"
+        "404":
+          $ref: "../common/components.yaml#/components/responses/NotFound"
+        default:
+          $ref: "../common/components.yaml#/components/responses/Problem"
+    put:
+      operationId: bookLedgerTransaction
+      summary: Book a ledger transaction.
+      description: >-
+        Books two or more entries together (LED-1). The caller chooses the
+        identifier, and payment-service takes the identifier of the payment. A
+        transaction that names a hold captures it in the same step (LED-6). A
+        repeat with the same content changes nothing (LED-7). Nothing is
+        booked when the entries do not balance, or when a debit would take
+        the available balance of a customer account below zero (LED-5).
+      tags:
+        - Ledger
+      security:
+        - AccessToken:
+            - ledger:write
+      parameters:
+        - $ref: "#/components/parameters/LedgerTransactionIdInPath"
+      requestBody:
+        description: The entries, and the hold that they capture.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewLedgerTransaction"
+            examples:
+              outboundPayment:
+                summary: An outbound payment that settled, with its fee (PAY-11)
+                value:
+                  holdId: c7a1e2d4-5b6f-4a80-9c3e-1d2f3a4b5c6d
+                  entries:
+                    - accountId: 9b2f7c1e-3a54-4d0b-8f6e-5c1a2b3d4e5f
+                      direction: DEBIT
+                      amount:
+                        amount: "202.50"
+                        currency: BRL
+                    - accountId: 5f0c2a1b-7d3e-4b9a-a1c2-3d4e5f607182
+                      direction: CREDIT
+                      amount:
+                        amount: "200.00"
+                        currency: BRL
+                    - accountId: 8c9d0e1f-2a3b-4c5d-9e6f-708192a3b4c5
+                      direction: CREDIT
+                      amount:
+                        amount: "2.50"
+                        currency: BRL
+              inboundPayment:
+                summary: An inbound payment, which needs no hold (PAY-12)
+                value:
+                  entries:
+                    - accountId: 5f0c2a1b-7d3e-4b9a-a1c2-3d4e5f607182
+                      direction: DEBIT
+                      amount:
+                        amount: "75.00"
+                        currency: BRL
+                    - accountId: 9b2f7c1e-3a54-4d0b-8f6e-5c1a2b3d4e5f
+                      direction: CREDIT
+                      amount:
+                        amount: "75.00"
+                        currency: BRL
+      responses:
+        "200":
+          description: The ledger transaction, booked now or by an earlier request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LedgerTransaction"
+              examples:
+                outboundPayment:
+                  $ref: "#/components/examples/OutboundLedgerTransaction"
+        "400":
+          $ref: "../common/components.yaml#/components/responses/InvalidRequest"
+        "401":
+          $ref: "../common/components.yaml#/components/responses/Unauthenticated"
+        "403":
+          $ref: "../common/components.yaml#/components/responses/InsufficientScope"
+        "409":
+          description: >-
+            A ledger transaction with this identifier exists, with another
+            content. Or the hold that the request names has ended.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "../common/components.yaml#/components/schemas/Problem"
+              examples:
+                ledgerTransactionExists:
+                  $ref: "#/components/examples/LedgerTransactionExists"
+                holdNotOpen:
+                  $ref: "#/components/examples/HoldNotOpen"
+        "422":
+          description: The ledger transaction breaks a rule of the ledger, and nothing is booked.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "../common/components.yaml#/components/schemas/Problem"
+              examples:
+                unbalanced:
+                  $ref: "#/components/examples/UnbalancedLedgerTransaction"
+                insufficientFunds:
+                  $ref: "#/components/examples/InsufficientFunds"
+                unknownAccount:
+                  $ref: "#/components/examples/UnknownAccount"
+                unknownHold:
+                  $ref: "#/components/examples/UnknownHold"
+        default:
+          $ref: "../common/components.yaml#/components/responses/Problem"
 
 components:
+  securitySchemes:
+    AccessToken:
+      $ref: "../common/components.yaml#/components/securitySchemes/AccessToken"
+
+  parameters:
+    AccountIdInPath:
+      name: accountId
+      in: path
+      required: true
+      description: The account that the URL names.
+      schema:
+        $ref: "#/components/schemas/AccountId"
+    HoldIdInPath:
+      name: holdId
+      in: path
+      required: true
+      description: The hold that the URL names.
+      schema:
+        $ref: "#/components/schemas/HoldId"
+    LedgerTransactionIdInPath:
+      name: ledgerTransactionId
+      in: path
+      required: true
+      description: The ledger transaction that the URL names.
+      schema:
+        $ref: "#/components/schemas/LedgerTransactionId"
+    AccountNumberFilter:
+      name: accountNumber
+      in: query
+      required: false
+      description: Narrows the list to the account with this account number.
+      schema:
+        $ref: "#/components/schemas/AccountNumber"
+    AccountKindFilter:
+      name: kind
+      in: query
+      required: false
+      description: Narrows the list to the accounts of one kind.
+      schema:
+        $ref: "#/components/schemas/AccountKind"
+    HoldStateFilter:
+      name: state
+      in: query
+      required: false
+      description: Narrows the list to the holds in one state.
+      schema:
+        $ref: "#/components/schemas/HoldState"
+    HoldAccountFilter:
+      name: accountId
+      in: query
+      required: false
+      description: Narrows the list to the holds on one account.
+      schema:
+        $ref: "#/components/schemas/AccountId"
+    EntryAccountFilter:
+      name: accountId
+      in: query
+      required: false
+      description: Narrows the list to the ledger transactions with an entry on one account.
+      schema:
+        $ref: "#/components/schemas/AccountId"
+
+  examples:
+    CustomerAccount:
+      summary: An account of a customer, with an open hold
+      description: The available balance is the booked balance minus the hold of 202.50.
+      value:
+        accountId: 9b2f7c1e-3a54-4d0b-8f6e-5c1a2b3d4e5f
+        kind: CUSTOMER
+        customerId: 6d1f0c52-8a3b-4e7d-9c10-2b4a6e8f0a1c
+        accountNumber: "48213907"
+        bookedBalance:
+          amount: "1500.00"
+          currency: BRL
+        availableBalance:
+          amount: "1297.50"
+          currency: BRL
+    SettlementAccount:
+      summary: The settlement account
+      description: A house account has no customer and no account number, and its balance can be below zero.
+      value:
+        accountId: 5f0c2a1b-7d3e-4b9a-a1c2-3d4e5f607182
+        kind: SETTLEMENT
+        bookedBalance:
+          amount: "-48750.00"
+          currency: BRL
+        availableBalance:
+          amount: "-48750.00"
+          currency: BRL
+    AccountPage:
+      summary: The only page of a short list
+      description: A last page has no nextCursor.
+      value:
+        items:
+          - accountId: 9b2f7c1e-3a54-4d0b-8f6e-5c1a2b3d4e5f
+            kind: CUSTOMER
+            customerId: 6d1f0c52-8a3b-4e7d-9c10-2b4a6e8f0a1c
+            accountNumber: "48213907"
+            bookedBalance:
+              amount: "1500.00"
+              currency: BRL
+            availableBalance:
+              amount: "1297.50"
+              currency: BRL
+    OpenHold:
+      summary: A hold that is open
+      description: The hold of an outbound payment, for its amount plus its fee.
+      value:
+        holdId: c7a1e2d4-5b6f-4a80-9c3e-1d2f3a4b5c6d
+        accountId: 9b2f7c1e-3a54-4d0b-8f6e-5c1a2b3d4e5f
+        amount:
+          amount: "202.50"
+          currency: BRL
+        state: OPEN
+        placedAt: "2026-11-25T18:30:00Z"
+    CapturedHold:
+      summary: A hold that a ledger transaction captured
+      description: The hold names the ledger transaction. Here both carry the identifier of the payment.
+      value:
+        holdId: c7a1e2d4-5b6f-4a80-9c3e-1d2f3a4b5c6d
+        accountId: 9b2f7c1e-3a54-4d0b-8f6e-5c1a2b3d4e5f
+        amount:
+          amount: "202.50"
+          currency: BRL
+        state: CAPTURED
+        placedAt: "2026-11-25T18:30:00Z"
+        ledgerTransactionId: c7a1e2d4-5b6f-4a80-9c3e-1d2f3a4b5c6d
+    ReleasedHold:
+      summary: A hold that was released
+      description: The hold of an outbound payment that the clearing network refused.
+      value:
+        holdId: c7a1e2d4-5b6f-4a80-9c3e-1d2f3a4b5c6d
+        accountId: 9b2f7c1e-3a54-4d0b-8f6e-5c1a2b3d4e5f
+        amount:
+          amount: "202.50"
+          currency: BRL
+        state: RELEASED
+        placedAt: "2026-11-25T18:30:00Z"
+    HoldPage:
+      summary: The only page of a short list of holds
+      description: One open hold.
+      value:
+        items:
+          - holdId: c7a1e2d4-5b6f-4a80-9c3e-1d2f3a4b5c6d
+            accountId: 9b2f7c1e-3a54-4d0b-8f6e-5c1a2b3d4e5f
+            amount:
+              amount: "202.50"
+              currency: BRL
+            state: OPEN
+            placedAt: "2026-11-25T18:30:00Z"
+    OutboundLedgerTransaction:
+      summary: The ledger transaction of an outbound payment
+      description: The payer pays the amount plus the fee. The settlement account gets the amount, and the fee account the fee.
+      value:
+        ledgerTransactionId: c7a1e2d4-5b6f-4a80-9c3e-1d2f3a4b5c6d
+        holdId: c7a1e2d4-5b6f-4a80-9c3e-1d2f3a4b5c6d
+        entries:
+          - accountId: 9b2f7c1e-3a54-4d0b-8f6e-5c1a2b3d4e5f
+            direction: DEBIT
+            amount:
+              amount: "202.50"
+              currency: BRL
+          - accountId: 5f0c2a1b-7d3e-4b9a-a1c2-3d4e5f607182
+            direction: CREDIT
+            amount:
+              amount: "200.00"
+              currency: BRL
+          - accountId: 8c9d0e1f-2a3b-4c5d-9e6f-708192a3b4c5
+            direction: CREDIT
+            amount:
+              amount: "2.50"
+              currency: BRL
+        bookedAt: "2026-11-25T18:30:04Z"
+    LedgerTransactionPage:
+      summary: The only page of a short list of ledger transactions
+      description: One inbound payment, which captured no hold.
+      value:
+        items:
+          - ledgerTransactionId: 2d9e4f6a-8b1c-4d3e-a5f6-0718293a4b5c
+            entries:
+              - accountId: 5f0c2a1b-7d3e-4b9a-a1c2-3d4e5f607182
+                direction: DEBIT
+                amount:
+                  amount: "75.00"
+                  currency: BRL
+              - accountId: 9b2f7c1e-3a54-4d0b-8f6e-5c1a2b3d4e5f
+                direction: CREDIT
+                amount:
+                  amount: "75.00"
+                  currency: BRL
+            bookedAt: "2026-11-25T17:05:12Z"
+    InsufficientFunds:
+      summary: A hold or a debit that the available balance does not cover
+      description: The problem of LED-5.
+      value:
+        type: https://xfeuer.github.io/maker-checker/problems/insufficient-funds
+        title: The available balance does not cover the amount.
+        status: 422
+    UnknownAccount:
+      summary: A request that names an account that does not exist
+      description: The account of a hold or of an entry is not in the ledger.
+      value:
+        type: https://xfeuer.github.io/maker-checker/problems/unknown-account
+        title: The request names an account that does not exist.
+        status: 422
+    UnknownHold:
+      summary: A ledger transaction that names a hold that does not exist
+      description: Nobody placed the hold that the ledger transaction wants to capture.
+      value:
+        type: https://xfeuer.github.io/maker-checker/problems/unknown-hold
+        title: The request names a hold that does not exist.
+        status: 422
+    UnbalancedLedgerTransaction:
+      summary: Entries whose debits do not equal their credits
+      description: The problem of LED-1.
+      value:
+        type: https://xfeuer.github.io/maker-checker/problems/unbalanced-ledger-transaction
+        title: The debits do not equal the credits.
+        status: 422
+    HoldExists:
+      summary: A second hold under one identifier
+      description: The first hold stays as it is.
+      value:
+        type: https://xfeuer.github.io/maker-checker/problems/hold-exists
+        title: A hold with this identifier exists, for another account or another amount.
+        status: 409
+    HoldNotOpen:
+      summary: A hold that has ended
+      description: A hold ends once (LED-6). Nothing captures it or releases it after that.
+      value:
+        type: https://xfeuer.github.io/maker-checker/problems/hold-not-open
+        title: The hold is not open.
+        status: 409
+    LedgerTransactionExists:
+      summary: A second ledger transaction under one identifier
+      description: The first ledger transaction stays as it is.
+      value:
+        type: https://xfeuer.github.io/maker-checker/problems/ledger-transaction-exists
+        title: A ledger transaction with this identifier exists, with another content.
+        status: 409
+
   schemas:
     ServiceStatus:
       type: object
@@ -67,3 +739,282 @@ components:
           description: Version of the running build.
           examples:
             - 0.1.0
+    AccountId:
+      type: string
+      format: uuid
+      description: The identifier of an account.
+      examples:
+        - 9b2f7c1e-3a54-4d0b-8f6e-5c1a2b3d4e5f
+    CustomerId:
+      type: string
+      format: uuid
+      description: The identifier of a customer, as the token of a user names it.
+      examples:
+        - 6d1f0c52-8a3b-4e7d-9c10-2b4a6e8f0a1c
+    HoldId:
+      type: string
+      format: uuid
+      description: The identifier of a hold. The caller chooses it.
+      examples:
+        - c7a1e2d4-5b6f-4a80-9c3e-1d2f3a4b5c6d
+    LedgerTransactionId:
+      type: string
+      format: uuid
+      description: The identifier of a ledger transaction. The caller chooses it.
+      examples:
+        - c7a1e2d4-5b6f-4a80-9c3e-1d2f3a4b5c6d
+    AccountNumber:
+      type: string
+      description: What a payer needs to pay the account. The service issues its eight digits.
+      pattern: '^[0-9]{8}$'
+      examples:
+        - "48213907"
+    AccountKind:
+      type: string
+      description: >-
+        Whose account it is. CUSTOMER is an account of a customer. SETTLEMENT
+        and FEE are the two house accounts of the platform (LED-8).
+      enum:
+        - CUSTOMER
+        - SETTLEMENT
+        - FEE
+      examples:
+        - CUSTOMER
+    Account:
+      type: object
+      description: >-
+        An account with its balances. A customer account has a customer and an
+        account number. A house account has neither. The booked balance is the
+        credits minus the debits (LED-3), and the available balance is the
+        booked balance minus the open holds (LED-4).
+      additionalProperties: false
+      required:
+        - accountId
+        - kind
+        - bookedBalance
+        - availableBalance
+      properties:
+        accountId:
+          $ref: "#/components/schemas/AccountId"
+        kind:
+          $ref: "#/components/schemas/AccountKind"
+        customerId:
+          $ref: "#/components/schemas/CustomerId"
+        accountNumber:
+          $ref: "#/components/schemas/AccountNumber"
+        bookedBalance:
+          $ref: "../common/components.yaml#/components/schemas/Balance"
+        availableBalance:
+          $ref: "../common/components.yaml#/components/schemas/Balance"
+    AccountPage:
+      type: object
+      description: One page of the list of accounts.
+      additionalProperties: false
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          description: The accounts of the page.
+          items:
+            $ref: "#/components/schemas/Account"
+          examples:
+            - - accountId: 9b2f7c1e-3a54-4d0b-8f6e-5c1a2b3d4e5f
+                kind: CUSTOMER
+                customerId: 6d1f0c52-8a3b-4e7d-9c10-2b4a6e8f0a1c
+                accountNumber: "48213907"
+                bookedBalance:
+                  amount: "1500.00"
+                  currency: BRL
+                availableBalance:
+                  amount: "1297.50"
+                  currency: BRL
+        nextCursor:
+          $ref: "../common/components.yaml#/components/schemas/NextCursor"
+    HoldState:
+      type: string
+      description: >-
+        Where a hold stands. It is OPEN from the moment it is placed. It ends
+        once: CAPTURED by a ledger transaction, or RELEASED (LED-6).
+      enum:
+        - OPEN
+        - CAPTURED
+        - RELEASED
+      examples:
+        - OPEN
+    NewHold:
+      type: object
+      description: What a caller sends to place a hold.
+      additionalProperties: false
+      required:
+        - accountId
+        - amount
+      properties:
+        accountId:
+          $ref: "#/components/schemas/AccountId"
+        amount:
+          $ref: "../common/components.yaml#/components/schemas/Money"
+    Hold:
+      type: object
+      description: An amount of one account that is reserved for one payment.
+      additionalProperties: false
+      required:
+        - holdId
+        - accountId
+        - amount
+        - state
+        - placedAt
+      properties:
+        holdId:
+          $ref: "#/components/schemas/HoldId"
+        accountId:
+          $ref: "#/components/schemas/AccountId"
+        amount:
+          $ref: "../common/components.yaml#/components/schemas/Money"
+        state:
+          $ref: "#/components/schemas/HoldState"
+        placedAt:
+          type: string
+          format: date-time
+          description: When the hold was placed, in UTC.
+          examples:
+            - "2026-11-25T18:30:00Z"
+        ledgerTransactionId:
+          $ref: "#/components/schemas/LedgerTransactionId"
+    HoldPage:
+      type: object
+      description: One page of the list of holds.
+      additionalProperties: false
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          description: The holds of the page.
+          items:
+            $ref: "#/components/schemas/Hold"
+          examples:
+            - - holdId: c7a1e2d4-5b6f-4a80-9c3e-1d2f3a4b5c6d
+                accountId: 9b2f7c1e-3a54-4d0b-8f6e-5c1a2b3d4e5f
+                amount:
+                  amount: "202.50"
+                  currency: BRL
+                state: OPEN
+                placedAt: "2026-11-25T18:30:00Z"
+        nextCursor:
+          $ref: "../common/components.yaml#/components/schemas/NextCursor"
+    EntryDirection:
+      type: string
+      description: >-
+        The side of an entry. A DEBIT lowers the booked balance of its
+        account, and a CREDIT raises it (LED-3).
+      enum:
+        - DEBIT
+        - CREDIT
+      examples:
+        - DEBIT
+    Entry:
+      type: object
+      description: One debit or one credit on one account.
+      additionalProperties: false
+      required:
+        - accountId
+        - direction
+        - amount
+      properties:
+        accountId:
+          $ref: "#/components/schemas/AccountId"
+        direction:
+          $ref: "#/components/schemas/EntryDirection"
+        amount:
+          $ref: "../common/components.yaml#/components/schemas/Money"
+    NewLedgerTransaction:
+      type: object
+      description: What a caller sends to book a ledger transaction.
+      additionalProperties: false
+      required:
+        - entries
+      properties:
+        entries:
+          type: array
+          description: The entries to book together. Their debits equal their credits.
+          minItems: 2
+          items:
+            $ref: "#/components/schemas/Entry"
+          examples:
+            - - accountId: 5f0c2a1b-7d3e-4b9a-a1c2-3d4e5f607182
+                direction: DEBIT
+                amount:
+                  amount: "75.00"
+                  currency: BRL
+              - accountId: 9b2f7c1e-3a54-4d0b-8f6e-5c1a2b3d4e5f
+                direction: CREDIT
+                amount:
+                  amount: "75.00"
+                  currency: BRL
+        holdId:
+          $ref: "#/components/schemas/HoldId"
+    LedgerTransaction:
+      type: object
+      description: Two or more entries that were booked together and that balance.
+      additionalProperties: false
+      required:
+        - ledgerTransactionId
+        - entries
+        - bookedAt
+      properties:
+        ledgerTransactionId:
+          $ref: "#/components/schemas/LedgerTransactionId"
+        holdId:
+          $ref: "#/components/schemas/HoldId"
+        entries:
+          type: array
+          description: The entries, in the order in which the caller sent them.
+          minItems: 2
+          items:
+            $ref: "#/components/schemas/Entry"
+          examples:
+            - - accountId: 5f0c2a1b-7d3e-4b9a-a1c2-3d4e5f607182
+                direction: DEBIT
+                amount:
+                  amount: "75.00"
+                  currency: BRL
+              - accountId: 9b2f7c1e-3a54-4d0b-8f6e-5c1a2b3d4e5f
+                direction: CREDIT
+                amount:
+                  amount: "75.00"
+                  currency: BRL
+        bookedAt:
+          type: string
+          format: date-time
+          description: When the ledger transaction was booked, in UTC.
+          examples:
+            - "2026-11-25T18:30:04Z"
+    LedgerTransactionPage:
+      type: object
+      description: One page of the list of ledger transactions.
+      additionalProperties: false
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          description: The ledger transactions of the page.
+          items:
+            $ref: "#/components/schemas/LedgerTransaction"
+          examples:
+            - - ledgerTransactionId: 2d9e4f6a-8b1c-4d3e-a5f6-0718293a4b5c
+                entries:
+                  - accountId: 5f0c2a1b-7d3e-4b9a-a1c2-3d4e5f607182
+                    direction: DEBIT
+                    amount:
+                      amount: "75.00"
+                      currency: BRL
+                  - accountId: 9b2f7c1e-3a54-4d0b-8f6e-5c1a2b3d4e5f
+                    direction: CREDIT
+                    amount:
+                      amount: "75.00"
+                      currency: BRL
+                bookedAt: "2026-11-25T17:05:12Z"
+        nextCursor:
+          $ref: "../common/components.yaml#/components/schemas/NextCursor"

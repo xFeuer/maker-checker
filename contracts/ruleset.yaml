@@ -169,6 +169,8 @@ rules:
           - payments:create
           - payments:cancel
           - payments:decide
+          - ledger:read
+          - ledger:write
           - hooks:use
   operations-with-a-token-have-401-and-403:
     description: An operation that needs a token has a 401 response and a 403 response.

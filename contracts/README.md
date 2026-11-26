@@ -16,7 +16,7 @@ Each service has its own directory, with two specifications:
 | `account-service` | [openapi.yaml](account-service/openapi.yaml) | [hooks.yaml](account-service/hooks.yaml) |
 | `payment-service` | not written yet | [hooks.yaml](payment-service/hooks.yaml) |
 
-The parts that the specifications share are in [common/components.yaml](common/components.yaml): the access token, the problem document, money, the idempotency key and the clock of the hooks. A specification refers to them and does not copy them.
+The parts that the specifications share are in [common/components.yaml](common/components.yaml): the access token, the problem document, money and balances, the pages of a list, the idempotency key and the clock of the hooks. A specification refers to them and does not copy them.
 
 ## Conventions
 
@@ -38,7 +38,9 @@ The smaller ones:
 - Names are in kebab-case in a path, in camelCase for a property, a parameter and an operation ID, and in UPPER_SNAKE_CASE for an enum value.
 - An identifier that the platform issues is a UUID, in a field named like `paymentId`.
 - A point in time is an RFC 3339 string in UTC that ends in `Z`, in a field named like `createdAt`.
-- A list comes in pages: `limit` and `cursor` in the query, `items` and `nextCursor` in the response.
+- A list comes in pages: `limit` and `cursor` in the query, `items` and `nextCursor` in the response. The last page has no `nextCursor`.
+- A caller that creates a thing under an identifier of its own uses a `PUT` on its URL. A repeat with the same content changes nothing. When the thing cannot change, such as a hold, another content under the same identifier gets 409.
+- A change that ends a thing is a `PUT` on a noun under it, such as `/v1/holds/{holdId}/release`. The thing stays readable.
 - Every object is closed, with `additionalProperties: false`. A request with an unknown property is refused with 400.
 - There is no `null`. A property without a value is absent.
 - Every operation has a `default` response, a problem, for what no other response covers.
@@ -50,6 +52,7 @@ Every operation has a `security` block of its own.
 
 - An operation that needs a token names the scheme `AccessToken` and the scopes that a caller needs, at least one.
 - An operation that anybody may call has an empty block, `security: []`. The status of a service is one.
+- An operation for two kinds of callers has two entries, one for each scope. Reading an account is one: a user needs `accounts:read`, and a service `ledger:read`.
 - An operation that needs a token has a 401 and a 403 response. The shared parts have both: `Unauthenticated` and `InsufficientScope`.
 - A specification takes the scheme from the shared parts, with a reference under its own `components.securitySchemes`.
 
@@ -62,6 +65,8 @@ The scopes:
 | `payments:create` | create a payment | a maker |
 | `payments:cancel` | cancel a payment that it made | a maker |
 | `payments:decide` | approve or reject a payment | a checker |
+| `ledger:read` | read every account, every hold and every ledger transaction | `payment-service`, and a test that checks the ledger |
+| `ledger:write` | place and release a hold, and book a ledger transaction | `payment-service`, and a test that puts money into an account |
 | `hooks:use` | call the hooks of a service | a test: only the simulator of the identity provider issues it |
 
 The list is closed. A contract that needs a new scope adds it here and to the rule `scopes-are-known` in [ruleset.yaml](ruleset.yaml).
@@ -131,7 +136,7 @@ The rules of vacuum already check the kebab-case of a path, the camelCase of a p
 
 `check` also tests the rules, with `vacuum test`. The suite is in [ruleset-tests](ruleset-tests/suite.yaml).
 
-- `keeps-the-rules.yaml` is a specification that follows every convention and uses the shared parts of an API. It is linted with every rule, and vacuum has to report nothing.
+- `keeps-the-rules.yaml` is a specification that follows every convention of an API and uses shared parts. It is linted with every rule, and vacuum has to report nothing.
 - `keeps-the-rules-of-hooks.yaml` is the same for hooks. It uses the shared clock.
 - Each rule of our own has a document that breaks it, and vacuum has to report exactly that rule.
 - A new rule comes with its document and its case in the suite.
