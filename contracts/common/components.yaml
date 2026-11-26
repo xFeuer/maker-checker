@@ -6,8 +6,8 @@ info:
   description: >-
     A specification refers to these parts and does not copy them. They hold
     what the conventions of the contracts fix for every service: the access
-    token, the problem document, money, the idempotency key and the clock of
-    the hooks.
+    token, the problem document, money and balances, the pages of a list, the
+    idempotency key and the clock of the hooks.
   version: 0.1.0
   license:
     name: MIT
@@ -134,6 +134,32 @@ components:
         pattern: '^"[A-Za-z0-9_-]{1,64}"$'
         examples:
           - '"8e03978e-40d5-43e8-bc93-6894a57f9324"'
+    PageLimit:
+      name: limit
+      in: query
+      required: false
+      description: The most items that one page holds.
+      schema:
+        type: integer
+        description: A count of items, from 1 to 100. Without it, a page holds 20.
+        minimum: 1
+        maximum: 100
+        default: 20
+        examples:
+          - 20
+    PageCursor:
+      name: cursor
+      in: query
+      required: false
+      description: >-
+        Where the page starts: the nextCursor of the page before. Without it,
+        the list starts at its beginning.
+      schema:
+        type: string
+        description: A value that only the service can read.
+        minLength: 1
+        examples:
+          - eyJhZnRlciI6IjliMmY3YzFlIn0
 
   headers:
     WwwAuthenticate:
@@ -191,6 +217,17 @@ components:
           examples:
             invalidRequest:
               $ref: "#/components/examples/InvalidRequest"
+    NotFound:
+      description: >-
+        The thing that the URL names does not exist. For a user, a thing of
+        another customer does not exist either.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+          examples:
+            notFound:
+              $ref: "#/components/examples/NotFound"
 
   examples:
     Unauthenticated:
@@ -205,6 +242,12 @@ components:
         type: https://xfeuer.github.io/maker-checker/problems/insufficient-scope
         title: The access token lacks a scope that the operation needs.
         status: 403
+    NotFound:
+      summary: A URL that names nothing
+      value:
+        type: about:blank
+        title: Not Found
+        status: 404
     UnexpectedFailure:
       summary: A failure that nobody expected
       value:
@@ -338,6 +381,37 @@ components:
             - BRL
           examples:
             - BRL
+    Balance:
+      type: object
+      description: >-
+        A balance with its currency. It has the form of money, with a minus
+        sign in front when it is below zero. See ADR 0011.
+      additionalProperties: false
+      required:
+        - amount
+        - currency
+      properties:
+        amount:
+          type: string
+          description: >-
+            The balance in reais: a minus sign when it is below zero, a point
+            and exactly two decimals, and no leading zero. Zero has no sign.
+          pattern: '^(-(0\.(0[1-9]|[1-9][0-9])|[1-9][0-9]{0,9}\.[0-9]{2})|(0|[1-9][0-9]{0,9})\.[0-9]{2})$'
+          examples:
+            - "-250.00"
+        currency:
+          type: string
+          description: The currency of the balance, as a code of ISO 4217.
+          enum:
+            - BRL
+          examples:
+            - BRL
+    NextCursor:
+      type: string
+      description: The cursor of the next page of a list. The last page has none.
+      minLength: 1
+      examples:
+        - eyJhZnRlciI6IjliMmY3YzFlIn0
     Clock:
       type: object
       description: The clock of the rules of a service. See ADR 0014.
