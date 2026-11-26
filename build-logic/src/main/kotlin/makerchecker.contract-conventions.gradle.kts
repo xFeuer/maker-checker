@@ -1,3 +1,5 @@
+import io.github.xfeuer.makerchecker.buildlogic.ApiReference
+import io.github.xfeuer.makerchecker.buildlogic.ProblemPages
 import io.github.xfeuer.makerchecker.buildlogic.RulesetTest
 import io.github.xfeuer.makerchecker.buildlogic.SpecificationLint
 import io.github.xfeuer.makerchecker.buildlogic.VacuumPlatform
@@ -10,6 +12,9 @@ plugins {
 
 // ADR 0009: vacuum lints every specification of a project that applies this plugin and tests the rules of its
 // ruleset. check runs both.
+//
+// ADR 0015: vacuum also renders the specifications as an API reference, and the build writes a page for each of
+// their problem types. assemble does both.
 
 val libs = the<VersionCatalogsExtension>().named("libs")
 val vacuumVersion = libs.findVersion("vacuum").get().requiredVersion
@@ -93,6 +98,60 @@ val testRuleset =
 
 tasks.check {
     dependsOn(lintSpecifications, testRuleset)
+}
+
+// The two directories have the places that they have on the site: the reference under api, and the problem types
+// next to it. So a link from one to the other also holds here, on disk.
+val site = layout.buildDirectory.dir("site")
+val titleOfTheReference = "${rootProject.name} API reference"
+
+val renderReference =
+    tasks.register<ApiReference>("renderReference") {
+        group = "documentation"
+        description = "Renders the API reference of every specification with vacuum."
+        vacuumHome = unpackVacuum.flatMap { it.destination }
+        executable = platform.map { it.executable() }
+        catalogTitle = titleOfTheReference
+        // The specifications, and the parts that they share. A specification refers to nothing else.
+        contracts.from(layout.projectDirectory)
+        contracts.include("*/openapi.yaml", "*/hooks.yaml", "common/*.yaml")
+        contracts.exclude("build/**")
+        reference = site.map { it.dir("api") }
+    }
+
+val problemPages =
+    tasks.register<ProblemPages>("problemPages") {
+        group = "documentation"
+        description = "Writes a page for each problem type that the specifications name."
+        vacuumHome = unpackVacuum.flatMap { it.destination }
+        executable = platform.map { it.executable() }
+        referenceTitle = titleOfTheReference
+        specifications.from(
+            fileTree(layout.projectDirectory) {
+                include("*/openapi.yaml", "*/hooks.yaml")
+                exclude("build/**")
+            },
+        )
+        sources.from(
+            fileTree(layout.projectDirectory) {
+                include("**/*.yaml")
+                exclude("build/**")
+            },
+        )
+        pages = site.map { it.dir("problems") }
+    }
+
+tasks.assemble {
+    dependsOn(renderReference, problemPages)
+}
+
+// The root project puts both directories into the site that GitHub Pages serves. It asks this project for them by
+// these two names, so it knows no task and no path of this project.
+configurations.consumable("apiReference") {
+    outgoing.artifact(renderReference.flatMap { it.reference })
+}
+configurations.consumable("problemTypes") {
+    outgoing.artifact(problemPages.flatMap { it.pages })
 }
 
 spotless {

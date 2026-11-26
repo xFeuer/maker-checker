@@ -56,14 +56,21 @@ tasks.withType<Test>().configureEach {
     }
 }
 
-tasks.register<AllureReport>("allureReport") {
-    group = LifecycleBasePlugin.VERIFICATION_GROUP
-    description = "Generates the Allure report from the results that the test tasks wrote."
-    allureHome = layout.dir(unpackAllure.map { it.destinationDir })
-    resultsDirectory = allureResults
-    reportName = rootProject.name
-    reportDirectory = layout.buildDirectory.dir("reports/allure")
-    launcher = javaToolchains.launcherFor(java.toolchain)
-    // The report follows the test tasks that run in the same build. It never starts one.
-    mustRunAfter(tasks.withType<Test>())
+val allureReport =
+    tasks.register<AllureReport>("allureReport") {
+        group = LifecycleBasePlugin.VERIFICATION_GROUP
+        description = "Generates the Allure report from the results that the test tasks wrote."
+        allureHome = layout.dir(unpackAllure.map { it.destinationDir })
+        resultsDirectory = allureResults
+        reportName = rootProject.name
+        reportDirectory = layout.buildDirectory.dir("reports/allure")
+        launcher = javaToolchains.launcherFor(java.toolchain)
+        // The report follows the test tasks that run in the same build. It never starts one.
+        mustRunAfter(tasks.withType<Test>())
+    }
+
+// ADR 0015: the root project puts the report into the site that GitHub Pages serves. It asks this project for it
+// by this name, so it knows no task and no path of this project.
+configurations.consumable("testReport") {
+    outgoing.artifact(allureReport.flatMap { it.reportDirectory })
 }

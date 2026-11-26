@@ -96,3 +96,32 @@ tasks.register("systemTest") {
     description = "Builds the images, starts the stack, runs the system tests, saves the logs and stops the stack."
     dependsOn(startStack, ":automation:suites:systemTest")
 }
+
+// ADR 0015: the site that GitHub Pages serves. The report of the system tests is its first page, and the API
+// reference and the pages of the problem types lie next to it.
+//
+// Each part comes from the project that builds it. That project offers it under a name, and a configuration here
+// asks for it by that name.
+fun partOfTheSite(
+    name: String,
+    project: String,
+    offeredAs: String,
+): NamedDomainObjectProvider<ResolvableConfiguration> {
+    val part = configurations.dependencyScope(name)
+    dependencies.add(part.name, dependencies.project(mapOf("path" to project, "configuration" to offeredAs)))
+    return configurations.resolvable("${name}Files") { extendsFrom(part.get()) }
+}
+
+val testReport = partOfTheSite("testReport", ":automation:suites", "testReport")
+val apiReference = partOfTheSite("apiReference", ":contracts", "apiReference")
+val problemTypes = partOfTheSite("problemTypes", ":contracts", "problemTypes")
+
+tasks.register<Sync>("site") {
+    group = "documentation"
+    description = "Assembles the site for GitHub Pages: the report, the API reference and the problem types."
+    // The report is there once the system tests have run. Without it, the site has no first page.
+    from(testReport)
+    from(apiReference) { into("api") }
+    from(problemTypes) { into("problems") }
+    into(layout.buildDirectory.dir("site"))
+}

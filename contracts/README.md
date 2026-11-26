@@ -28,7 +28,7 @@ The parts that the specifications share are in [common/components.yaml](common/c
 
 Six conventions have a decision record:
 
-- **Errors.** Every 4xx and 5xx response is a problem document of RFC 9457. A client relies on its `type` and its `status`. See [ADR 0010](../docs/adr/0010-problem-details-for-every-error-response.md).
+- **Errors.** Every 4xx and 5xx response is a problem document of RFC 9457. A client relies on its `type` and its `status`. The type is the address of a page that describes the problem. See [ADR 0010](../docs/adr/0010-problem-details-for-every-error-response.md).
 - **Money.** Money is an object such as `{ "amount": "10.50", "currency": "BRL" }`. The amount is a string with exactly two decimals, and no schema has the type `number`. See [ADR 0011](../docs/adr/0011-money-as-a-decimal-string-with-its-currency.md).
 - **Idempotency.** Every `POST` takes an `Idempotency-Key`. Every other change is a `PUT` or a `DELETE` on a URL that names the thing. See [ADR 0012](../docs/adr/0012-an-idempotency-key-for-every-post.md).
 - **Callers.** A caller sends an access token of the identity provider, as a bearer token. Its scopes say what the caller may do, and every operation names the scopes that it needs. See [ADR 0013](../docs/adr/0013-access-tokens-from-an-identity-provider-outside-the-platform.md).
@@ -199,3 +199,20 @@ Dependabot does not follow GitHub releases, so this is done by hand.
 1. Set `vacuum` in `gradle/libs.versions.toml` to the new version.
 2. Replace `gradle/vacuum-checksums.txt` with the `checksums.txt` of that release.
 3. Run `./gradlew build`.
+4. Open `build/site/api/index.html` and look at a few pages: vacuum also renders the reference. Make the window small and scroll the catalog. The build adds a rule for that to a style sheet of vacuum 0.43.0, in `ScrollingCatalog`. It can go when the catalog scrolls without it.
+
+## The API reference
+
+The build renders every specification as pages, and it writes a page for each problem type. See [ADR 0015](../docs/adr/0015-an-api-reference-rendered-by-vacuum-next-to-the-report.md).
+
+```
+./gradlew :contracts:assemble
+```
+
+- The reference is in `build/site/api/index.html`. vacuum renders it with its `docs` command: a catalog of the services and the shared parts, with a page for each operation and each schema.
+- The problem types are in `build/site/problems/index.html`. The build reads them from the examples of the error responses: the status, the title and the operations that answer with the problem.
+- Both open in a browser as they are. No page loads anything from another host, and the build fails when one would.
+- The specifications have to agree on a problem type: it has one title and one status code. The build fails when they do not.
+- A description in a specification is Markdown. An image from another host in it fails the build.
+
+CI publishes both next to the report of the last run on `main`: the [reference](https://xfeuer.github.io/maker-checker/api/) and the [problem types](https://xfeuer.github.io/maker-checker/problems/).

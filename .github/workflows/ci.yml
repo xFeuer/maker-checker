@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     outputs:
-      # Set when this run uploaded a report for GitHub Pages.
+      # Set when this run uploaded a site for GitHub Pages.
       pages-artifact-id: ${{ steps.pages-artifact.outputs.artifact_id }}
     steps:
       - name: Check out
@@ -66,18 +66,28 @@ jobs:
           path: build/stack-logs/stack.log
           if-no-files-found: ${{ steps.system-tests.outcome == 'success' && 'error' || 'ignore' }}
 
-      # GitHub Pages shows the report of the last run on main, also when that run is red.
-      - name: Upload the report for GitHub Pages
+      # The site is the report with the API reference and the pages of the problem types next to it: ADR 0015.
+      # Every run assembles it, so a pull request proves the step. It follows the uploads above, which do not
+      # depend on it.
+      - name: Assemble the site
+        id: site
+        if: ${{ !cancelled() && steps.system-tests.outcome != 'skipped' }}
+        run: ./gradlew site
+
+      # GitHub Pages shows the site of the last run on main that has a report, also when that run is red.
+      - name: Upload the site for GitHub Pages
         id: pages-artifact
-        if: ${{ !cancelled() && github.ref == 'refs/heads/main' && steps.report.outputs.artifact-id != '' }}
+        if: >-
+          ${{ !cancelled() && github.ref == 'refs/heads/main' && steps.report.outputs.artifact-id != ''
+          && steps.site.outcome == 'success' }}
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
-          path: automation/suites/build/reports/allure
+          path: build/site
 
-  publish-report:
-    name: Publish the report
+  publish-site:
+    name: Publish the site
     needs: build
-    # Runs when the build uploaded a report for GitHub Pages, also when the build is red.
+    # Runs when the build uploaded a site for GitHub Pages, also when the build is red.
     if: ${{ !cancelled() && needs.build.outputs.pages-artifact-id != '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
