@@ -169,6 +169,8 @@ rules:
           - payments:create
           - payments:cancel
           - payments:decide
+          - payments:deliver
+          - payments:answer
           - ledger:read
           - ledger:write
           - hooks:use

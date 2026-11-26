@@ -7,7 +7,8 @@ info:
     A specification refers to these parts and does not copy them. They hold
     what the conventions of the contracts fix for every service: the access
     token, the problem document, money and balances, the pages of a list, the
-    idempotency key and the clock of the hooks.
+    idempotency key, the correlation ID, the names that several services use
+    and the clock of the hooks.
   version: 0.1.0
   license:
     name: MIT
@@ -289,6 +290,44 @@ components:
         standing: false
 
   schemas:
+    ServiceStatus:
+      type: object
+      description: Identity of a running service.
+      additionalProperties: false
+      required:
+        - service
+        - version
+      properties:
+        service:
+          type: string
+          description: Name of the service.
+          examples:
+            - account-service
+        version:
+          type: string
+          description: Version of the running build.
+          examples:
+            - 0.1.0
+    AccountId:
+      type: string
+      format: uuid
+      description: The identifier of an account.
+      examples:
+        - 9b2f7c1e-3a54-4d0b-8f6e-5c1a2b3d4e5f
+    AccountNumber:
+      type: string
+      description: What a payer needs to pay an account of the platform. account-service issues its eight digits.
+      pattern: '^[0-9]{8}$'
+      examples:
+        - "48213907"
+    CorrelationId:
+      type: string
+      description: >-
+        The correlation ID of a request: the trace ID of its traceparent
+        header, in 32 hexadecimal digits. See ADR 0014.
+      pattern: '^[0-9a-f]{32}$'
+      examples:
+        - 0af7651916cd43dd8448eb211c80319c
     Problem:
       type: object
       description: >-

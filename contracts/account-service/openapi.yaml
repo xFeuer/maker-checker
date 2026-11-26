@@ -45,7 +45,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ServiceStatus"
+                $ref: "../common/components.yaml#/components/schemas/ServiceStatus"
               examples:
                 up:
                   summary: A running service
@@ -490,7 +490,7 @@ components:
       required: true
       description: The account that the URL names.
       schema:
-        $ref: "#/components/schemas/AccountId"
+        $ref: "../common/components.yaml#/components/schemas/AccountId"
     HoldIdInPath:
       name: holdId
       in: path
@@ -511,7 +511,7 @@ components:
       required: false
       description: Narrows the list to the account with this account number.
       schema:
-        $ref: "#/components/schemas/AccountNumber"
+        $ref: "../common/components.yaml#/components/schemas/AccountNumber"
     AccountKindFilter:
       name: kind
       in: query
@@ -532,14 +532,14 @@ components:
       required: false
       description: Narrows the list to the holds on one account.
       schema:
-        $ref: "#/components/schemas/AccountId"
+        $ref: "../common/components.yaml#/components/schemas/AccountId"
     EntryAccountFilter:
       name: accountId
       in: query
       required: false
       description: Narrows the list to the ledger transactions with an entry on one account.
       schema:
-        $ref: "#/components/schemas/AccountId"
+        $ref: "../common/components.yaml#/components/schemas/AccountId"
 
   examples:
     CustomerAccount:
@@ -721,30 +721,6 @@ components:
         status: 409
 
   schemas:
-    ServiceStatus:
-      type: object
-      description: Identity of a running service.
-      additionalProperties: false
-      required:
-        - service
-        - version
-      properties:
-        service:
-          type: string
-          description: Name of the service.
-          examples:
-            - account-service
-        version:
-          type: string
-          description: Version of the running build.
-          examples:
-            - 0.1.0
-    AccountId:
-      type: string
-      format: uuid
-      description: The identifier of an account.
-      examples:
-        - 9b2f7c1e-3a54-4d0b-8f6e-5c1a2b3d4e5f
     CustomerId:
       type: string
       format: uuid
@@ -763,12 +739,6 @@ components:
       description: The identifier of a ledger transaction. The caller chooses it.
       examples:
         - c7a1e2d4-5b6f-4a80-9c3e-1d2f3a4b5c6d
-    AccountNumber:
-      type: string
-      description: What a payer needs to pay the account. The service issues its eight digits.
-      pattern: '^[0-9]{8}$'
-      examples:
-        - "48213907"
     AccountKind:
       type: string
       description: >-
@@ -795,13 +765,13 @@ components:
         - availableBalance
       properties:
         accountId:
-          $ref: "#/components/schemas/AccountId"
+          $ref: "../common/components.yaml#/components/schemas/AccountId"
         kind:
           $ref: "#/components/schemas/AccountKind"
         customerId:
           $ref: "#/components/schemas/CustomerId"
         accountNumber:
-          $ref: "#/components/schemas/AccountNumber"
+          $ref: "../common/components.yaml#/components/schemas/AccountNumber"
         bookedBalance:
           $ref: "../common/components.yaml#/components/schemas/Balance"
         availableBalance:
@@ -851,7 +821,7 @@ components:
         - amount
       properties:
         accountId:
-          $ref: "#/components/schemas/AccountId"
+          $ref: "../common/components.yaml#/components/schemas/AccountId"
         amount:
           $ref: "../common/components.yaml#/components/schemas/Money"
     Hold:
@@ -868,7 +838,7 @@ components:
         holdId:
           $ref: "#/components/schemas/HoldId"
         accountId:
-          $ref: "#/components/schemas/AccountId"
+          $ref: "../common/components.yaml#/components/schemas/AccountId"
         amount:
           $ref: "../common/components.yaml#/components/schemas/Money"
         state:
@@ -923,7 +893,7 @@ components:
         - amount
       properties:
         accountId:
-          $ref: "#/components/schemas/AccountId"
+          $ref: "../common/components.yaml#/components/schemas/AccountId"
         direction:
           $ref: "#/components/schemas/EntryDirection"
         amount:
