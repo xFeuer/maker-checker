@@ -14,9 +14,9 @@ Each service has its own directory, with two specifications:
 | Service | API | Hooks |
 |---|---|---|
 | `account-service` | [openapi.yaml](account-service/openapi.yaml) | [hooks.yaml](account-service/hooks.yaml) |
-| `payment-service` | not written yet | [hooks.yaml](payment-service/hooks.yaml) |
+| `payment-service` | [openapi.yaml](payment-service/openapi.yaml) | [hooks.yaml](payment-service/hooks.yaml) |
 
-The parts that the specifications share are in [common/components.yaml](common/components.yaml): the access token, the problem document, money and balances, the pages of a list, the idempotency key and the clock of the hooks. A specification refers to them and does not copy them.
+The parts that the specifications share are in [common/components.yaml](common/components.yaml): the access token, the problem document, money and balances, the pages of a list, the idempotency key, the correlation ID, the names that several services use and the clock of the hooks. A specification refers to them and does not copy them.
 
 ## Conventions
 
@@ -39,9 +39,11 @@ The smaller ones:
 - An identifier that the platform issues is a UUID, in a field named like `paymentId`.
 - A point in time is an RFC 3339 string in UTC that ends in `Z`, in a field named like `createdAt`.
 - A list comes in pages: `limit` and `cursor` in the query, `items` and `nextCursor` in the response. The last page has no `nextCursor`.
+- A `POST` that creates a thing answers 201, with the thing in the body and its path in the `Location` header.
 - A caller that creates a thing under an identifier of its own uses a `PUT` on its URL. A repeat with the same content changes nothing. When the thing cannot change, such as a hold, another content under the same identifier gets 409.
 - A change that ends a thing is a `PUT` on a noun under it, such as `/v1/holds/{holdId}/release`. The thing stays readable.
 - Every object is closed, with `additionalProperties: false`. A request with an unknown property is refused with 400.
+- A request body with more than one form is a `oneOf` of closed objects. One property with a fixed value tells the forms apart, such as the `kind` of a new payment.
 - There is no `null`. A property without a value is absent.
 - Every operation has a `default` response, a problem, for what no other response covers.
 - Every request and every response has an example.
@@ -60,18 +62,20 @@ The scopes:
 
 | Scope | It lets the caller | Who has it |
 |---|---|---|
-| `accounts:read` | read the accounts of its customer | every user |
-| `payments:read` | read the payments of its customer | every user |
+| `accounts:read` | read the accounts of its customer, with their limits | every user |
+| `payments:read` | read the payments of its customer, with their audit trails | every user |
 | `payments:create` | create a payment | a maker |
 | `payments:cancel` | cancel a payment that it made | a maker |
 | `payments:decide` | approve or reject a payment | a checker |
+| `payments:deliver` | deliver an inbound payment | the clearing network |
+| `payments:answer` | give the final answer for an outbound payment | the clearing network |
 | `ledger:read` | read every account, every hold and every ledger transaction | `payment-service`, and a test that checks the ledger |
 | `ledger:write` | place and release a hold, and book a ledger transaction | `payment-service`, and a test that puts money into an account |
 | `hooks:use` | call the hooks of a service | a test: only the simulator of the identity provider issues it |
 
 The list is closed. A contract that needs a new scope adds it here and to the rule `scopes-are-known` in [ruleset.yaml](ruleset.yaml).
 
-A scope opens an operation, and the rules of the [domain model](../docs/domain.md#what-each-actor-may-do) still decide. A request for something of another customer gets 404, whatever its scopes.
+A scope opens an operation, and the rules of the [domain model](../docs/domain.md#what-each-actor-may-do) still decide. A request for something of another customer is refused like one for something that does not exist, whatever its scopes: with 404 when the URL names the thing, and with 422 when the body does.
 
 ### Hooks
 
@@ -130,7 +134,7 @@ Gradle downloads vacuum from its GitHub release and checks the archive against a
 | `hooks-need-the-hooks-scope` | every operation under `/hooks` needs the scope `hooks:use` |
 | `only-hooks-take-the-hooks-scope` | no other operation takes the scope `hooks:use` |
 
-The rules of vacuum already check the kebab-case of a path, the camelCase of a property, the descriptions and the examples. They also check that a `security` block names a scheme that the specification has. No rule checks the name of a parameter, or the conventions for identifiers, points in time and pages.
+The rules of vacuum already check the kebab-case of a path, the camelCase of a property, the descriptions and the examples. They also check that a `security` block names a scheme that the specification has. No rule checks the name of a parameter, the mapping of a `discriminator`, or the conventions for identifiers, points in time and pages.
 
 ### The tests of the rules
 

@@ -4,8 +4,8 @@ info:
   title: A specification that keeps the rules
   summary: The sample that the tests of the ruleset lint with every rule.
   description: >-
-    It follows every convention of the contracts and uses every shared part.
-    It is not the contract of a service.
+    It follows every convention of the contracts and uses shared parts. It is
+    not the contract of a service.
   version: 0.1.0
   license:
     name: MIT

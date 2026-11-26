@@ -1,0 +1,1541 @@
+openapi: 3.1.2
+
+info:
+  title: payment-service
+  summary: Payments of the maker-checker platform.
+  description: >-
+    The service that owns the payments of the platform. It keeps their states,
+    the approvals, the limits, the fees and the audit trail, and it talks to
+    the clearing network. It moves money only by asking account-service. A
+    maker creates a payment here, and a checker decides it. The clearing
+    network delivers its inbound payments here and gives its final answers.
+    See ADR 0008.
+  version: 0.1.0
+  license:
+    name: MIT
+    identifier: MIT
+
+servers:
+  - url: http://localhost:8081
+    description: The local stack, as `deploy/compose.yaml` starts it.
+
+tags:
+  - name: Status
+    description: Whether the service is up and which build it runs.
+  - name: Payments
+    description: The payments, from their creation to their final state.
+  - name: Approval
+    description: The one decision on a payment that waits for approval.
+  - name: Audit trail
+    description: The record of what happened to a payment.
+  - name: Limits
+    description: The limits of an account, and what it has paid out.
+  - name: Clearing network
+    description: What the clearing network calls. No user has the scopes for it.
+
+paths:
+  /v1/status:
+    get:
+      operationId: getStatus
+      summary: Report the service name and version.
+      description: >-
+        The smoke-test target. A successful response proves that the service
+        is up and speaks this contract. Anybody may call it, without a token.
+      tags:
+        - Status
+      security: []
+      responses:
+        "200":
+          description: The service is up.
+          content:
+            application/json:
+              schema:
+                $ref: "../common/components.yaml#/components/schemas/ServiceStatus"
+              examples:
+                up:
+                  summary: A running service
+                  value:
+                    service: payment-service
+                    version: 0.1.0
+        default:
+          $ref: "../common/components.yaml#/components/responses/Problem"
+  /v1/payments:
+    post:
+      operationId: createPayment
+      summary: Create a payment.
+      description: >-
+        Creates an internal or an outbound payment from an account of the
+        customer of the caller (PAY-2, PAY-3). For an outbound payment, the
+        service first resolves the alias at the clearing network (NET-2), and
+        it fixes the fee (FEE-3). The response shows the payment as it is at
+        that moment. Above the approval limit, it waits for approval (APR-1).
+        Otherwise it is processing, or it has already ended, and a client
+        reads the payment until its state is final. A payment that a daily
+        limit, a night limit, the funds or the clearing network stops is
+        created too, and it reads as failed (PAY-9, PAY-11). A repeat with
+        the same key and the same body gets the first response again,
+        whatever has happened since (PAY-5).
+      tags:
+        - Payments
+      security:
+        - AccessToken:
+            - payments:create
+      parameters:
+        - $ref: "../common/components.yaml#/components/parameters/IdempotencyKey"
+      requestBody:
+        description: The payment to create. Its kind says how it names the payee.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewPayment"
+            examples:
+              internal:
+                summary: An internal payment, to an account number
+                value:
+                  kind: INTERNAL
+                  payerAccountId: 9b2f7c1e-3a54-4d0b-8f6e-5c1a2b3d4e5f
+                  payeeAccountNumber: "75306214"
+                  amount:
+                    amount: "350.00"
+                    currency: BRL
+              outbound:
+                summary: An outbound payment, to an alias
+                value:
+                  kind: OUTBOUND
+                  payerAccountId: 9b2f7c1e-3a54-4d0b-8f6e-5c1a2b3d4e5f
+                  payeeAlias: pagamentos@aurora.example
+                  amount:
+                    amount: "200.00"
+                    currency: BRL
+      responses:
+        "201":
+          description: The payment exists. The body shows it as it is at that moment.
+          headers:
+            Location:
+              $ref: "#/components/headers/PaymentLocation"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Payment"
+              examples:
+                pendingApproval:
+                  $ref: "#/components/examples/PendingPayment"
+                processing:
+                  $ref: "#/components/examples/ProcessingPayment"
+                settled:
+                  $ref: "#/components/examples/InternalPayment"
+                failed:
+                  $ref: "#/components/examples/PaymentOverTheDailyLimit"
+        "400":
+          $ref: "../common/components.yaml#/components/responses/InvalidRequest"
+        "401":
+          $ref: "../common/components.yaml#/components/responses/Unauthenticated"
+        "403":
+          $ref: "../common/components.yaml#/components/responses/InsufficientScope"
+        "409":
+          description: The first request with this key is still being handled.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "../common/components.yaml#/components/schemas/Problem"
+              examples:
+                requestInProgress:
+                  $ref: "../common/components.yaml#/components/examples/RequestInProgress"
+        "422":
+          description: >-
+            The request breaks a rule of the domain, or its key came before
+            with another request. No payment is created.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "../common/components.yaml#/components/schemas/Problem"
+              examples:
+                idempotencyKeyReused:
+                  $ref: "../common/components.yaml#/components/examples/IdempotencyKeyReused"
+                amountNotPositive:
+                  $ref: "#/components/examples/AmountNotPositive"
+                paymentLimitExceeded:
+                  $ref: "#/components/examples/PaymentLimitExceeded"
+                unknownPayerAccount:
+                  $ref: "#/components/examples/UnknownPayerAccount"
+                unknownPayeeAccount:
+                  $ref: "#/components/examples/UnknownPayeeAccount"
+                payeeIsPayer:
+                  $ref: "#/components/examples/PayeeIsPayer"
+                unknownAlias:
+                  $ref: "#/components/examples/UnknownAlias"
+        default:
+          $ref: "../common/components.yaml#/components/responses/Problem"
+    get:
+      operationId: listPayments
+      summary: List the payments.
+      description: >-
+        Lists the payments of the customer of the caller in pages, in the
+        order in which they were created: the payments that one of its
+        accounts pays, and the ones that pay one of its accounts. A payment
+        of the second sort is on the list only once it is settled (PAY-15). A
+        payment has to pass every filter of the request.
+      tags:
+        - Payments
+      security:
+        - AccessToken:
+            - payments:read
+      parameters:
+        - $ref: "#/components/parameters/PaymentStateFilter"
+        - $ref: "#/components/parameters/PaymentAccountFilter"
+        - $ref: "#/components/parameters/EndToEndIdFilter"
+        - $ref: "../common/components.yaml#/components/parameters/PageLimit"
+        - $ref: "../common/components.yaml#/components/parameters/PageCursor"
+      responses:
+        "200":
+          description: One page of payments.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentPage"
+              examples:
+                lastPage:
+                  $ref: "#/components/examples/PaymentPage"
+        "400":
+          $ref: "../common/components.yaml#/components/responses/InvalidRequest"
+        "401":
+          $ref: "../common/components.yaml#/components/responses/Unauthenticated"
+        "403":
+          $ref: "../common/components.yaml#/components/responses/InsufficientScope"
+        default:
+          $ref: "../common/components.yaml#/components/responses/Problem"
+  /v1/payments/{paymentId}:
+    get:
+      operationId: getPayment
+      summary: Read a payment.
+      description: >-
+        Reads one payment as it is now. A client that waits for a final state
+        reads the payment until it has one. To the customer of the payee, an
+        internal payment does not exist before it is settled (PAY-15). To
+        every other customer, it never exists (CUS-4).
+      tags:
+        - Payments
+      security:
+        - AccessToken:
+            - payments:read
+      parameters:
+        - $ref: "#/components/parameters/PaymentIdInPath"
+      responses:
+        "200":
+          description: The payment, as the customer of the caller sees it.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Payment"
+              examples:
+                settledOutbound:
+                  $ref: "#/components/examples/SettledOutboundPayment"
+                refusedByTheNetwork:
+                  $ref: "#/components/examples/PaymentRefusedByTheNetwork"
+                internalForThePayee:
+                  $ref: "#/components/examples/InternalPaymentOfThePayee"
+                inbound:
+                  $ref: "#/components/examples/InboundPayment"
+        "401":
+          $ref: "../common/components.yaml#/components/responses/Unauthenticated"
+        "403":
+          $ref: "../common/components.yaml#/components/responses/InsufficientScope"
+        "404":
+          $ref: "../common/components.yaml#/components/responses/NotFound"
+        default:
+          $ref: "../common/components.yaml#/components/responses/Problem"
+  /v1/payments/{paymentId}/decision:
+    put:
+      operationId: decidePayment
+      summary: Approve or reject a payment.
+      description: >-
+        Decides a payment that waits for approval. An approved payment starts
+        processing, and a rejected one has ended. Only a checker of the
+        customer of the payer decides (APR-2), and to every other customer
+        this URL names nothing. The maker of a payment never decides it, also
+        as a checker (APR-3). A payment is decided once (APR-6): the same
+        decision from the same checker again changes nothing, and any other
+        decision on a payment that no longer waits is refused.
+      tags:
+        - Approval
+      security:
+        - AccessToken:
+            - payments:decide
+      parameters:
+        - $ref: "#/components/parameters/PaymentIdInPath"
+      requestBody:
+        description: What the checker decides.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentDecision"
+            examples:
+              approve:
+                summary: An approval
+                value:
+                  decision: APPROVED
+              reject:
+                summary: A rejection
+                value:
+                  decision: REJECTED
+      responses:
+        "200":
+          description: The payment as it is now, decided by this request or by an earlier one like it.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Payment"
+              examples:
+                approved:
+                  $ref: "#/components/examples/ApprovedPayment"
+                rejected:
+                  $ref: "#/components/examples/RejectedPayment"
+        "400":
+          $ref: "../common/components.yaml#/components/responses/InvalidRequest"
+        "401":
+          $ref: "../common/components.yaml#/components/responses/Unauthenticated"
+        "403":
+          description: >-
+            The caller may not decide this payment. The token lacks the scope,
+            or the caller made the payment.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "../common/components.yaml#/components/schemas/Problem"
+              examples:
+                insufficientScope:
+                  $ref: "../common/components.yaml#/components/examples/InsufficientScope"
+                decisionByTheMaker:
+                  $ref: "#/components/examples/DecisionByTheMaker"
+        "404":
+          $ref: "../common/components.yaml#/components/responses/NotFound"
+        "409":
+          description: >-
+            The payment does not wait for approval: somebody else decided it,
+            it expired, or it never needed a decision.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "../common/components.yaml#/components/schemas/Problem"
+              examples:
+                paymentNotPendingApproval:
+                  $ref: "#/components/examples/PaymentNotPendingApproval"
+        default:
+          $ref: "../common/components.yaml#/components/responses/Problem"
+  /v1/payments/{paymentId}/cancellation:
+    put:
+      operationId: cancelPayment
+      summary: Cancel a payment.
+      description: >-
+        Withdraws a payment that waits for approval. Only its maker can
+        (APR-4), and to a customer other than the one of the payer this URL
+        names nothing. A cancellation is a decision, so it takes effect once
+        (APR-6): a repeat by the maker changes nothing, and a payment that a
+        checker has decided or that has expired is not canceled anymore.
+      tags:
+        - Approval
+      security:
+        - AccessToken:
+            - payments:cancel
+      parameters:
+        - $ref: "#/components/parameters/PaymentIdInPath"
+      responses:
+        "200":
+          description: The payment as it is now, canceled by this request or by an earlier one.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Payment"
+              examples:
+                canceled:
+                  $ref: "#/components/examples/CanceledPayment"
+        "401":
+          $ref: "../common/components.yaml#/components/responses/Unauthenticated"
+        "403":
+          description: >-
+            The caller may not cancel this payment. The token lacks the scope,
+            or another user made the payment.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "../common/components.yaml#/components/schemas/Problem"
+              examples:
+                insufficientScope:
+                  $ref: "../common/components.yaml#/components/examples/InsufficientScope"
+                cancellationByAnotherUser:
+                  $ref: "#/components/examples/CancellationByAnotherUser"
+        "404":
+          $ref: "../common/components.yaml#/components/responses/NotFound"
+        "409":
+          description: >-
+            The payment does not wait for approval: a checker decided it, it
+            expired, or it never waited.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "../common/components.yaml#/components/schemas/Problem"
+              examples:
+                paymentNotPendingApproval:
+                  $ref: "#/components/examples/PaymentNotPendingApproval"
+        default:
+          $ref: "../common/components.yaml#/components/responses/Problem"
+  /v1/payments/{paymentId}/events:
+    get:
+      operationId: listPaymentEvents
+      summary: List the audit events of a payment.
+      description: >-
+        Lists the audit trail of one payment in pages, in the order of the
+        sequence numbers (AUD-4). A customer reads the trail of a payment that
+        it sees from its creation: one that its account pays, or an inbound
+        one. The trail of an internal payment names the users of the payer, so
+        to the customer of the payee this URL names nothing (PAY-15).
+      tags:
+        - Audit trail
+      security:
+        - AccessToken:
+            - payments:read
+      parameters:
+        - $ref: "#/components/parameters/PaymentIdInPath"
+        - $ref: "../common/components.yaml#/components/parameters/PageLimit"
+        - $ref: "../common/components.yaml#/components/parameters/PageCursor"
+      responses:
+        "200":
+          description: One page of audit events.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentEventPage"
+              examples:
+                rejected:
+                  $ref: "#/components/examples/TrailOfARejectedPayment"
+                internal:
+                  $ref: "#/components/examples/TrailOfAnInternalPayment"
+                inbound:
+                  $ref: "#/components/examples/TrailOfAnInboundPayment"
+        "400":
+          $ref: "../common/components.yaml#/components/responses/InvalidRequest"
+        "401":
+          $ref: "../common/components.yaml#/components/responses/Unauthenticated"
+        "403":
+          $ref: "../common/components.yaml#/components/responses/InsufficientScope"
+        "404":
+          $ref: "../common/components.yaml#/components/responses/NotFound"
+        default:
+          $ref: "../common/components.yaml#/components/responses/Problem"
+  /v1/accounts/{accountId}/limits:
+    get:
+      operationId: getLimits
+      summary: Read the limits of an account.
+      description: >-
+        Reads the three limits of an account of the customer of the caller
+        (LIM-1), with what the account has paid out in the current day and in
+        the current night. The clock of the rules says which day and which
+        night that is (TIM-1).
+      tags:
+        - Limits
+      security:
+        - AccessToken:
+            - accounts:read
+      parameters:
+        - $ref: "#/components/parameters/AccountIdInPath"
+      responses:
+        "200":
+          description: The limits and the totals of the account.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountLimits"
+              examples:
+                duringTheDay:
+                  $ref: "#/components/examples/LimitsDuringTheDay"
+                duringANight:
+                  $ref: "#/components/examples/LimitsDuringANight"
+        "401":
+          $ref: "../common/components.yaml#/components/responses/Unauthenticated"
+        "403":
+          $ref: "../common/components.yaml#/components/responses/InsufficientScope"
+        "404":
+          $ref: "../common/components.yaml#/components/responses/NotFound"
+        default:
+          $ref: "../common/components.yaml#/components/responses/Problem"
+  /v1/inbound-payments/{endToEndId}:
+    put:
+      operationId: deliverInboundPayment
+      summary: Deliver an inbound payment.
+      description: >-
+        Takes a payment that arrives from the clearing network for an account
+        of the platform (PAY-2). The platform books it at once, so the payment
+        is settled from its first moment (PAY-12). The network names the
+        payment by its end-to-end ID, so a second delivery with the same
+        content books nothing and gets the same answer (PAY-13). A delivery
+        for an account number that the platform does not know is refused, and
+        nothing is booked.
+      tags:
+        - Clearing network
+      security:
+        - AccessToken:
+            - payments:deliver
+      parameters:
+        - $ref: "#/components/parameters/EndToEndIdInPath"
+      requestBody:
+        description: The amount, the payee and the payer of the inbound payment.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InboundDelivery"
+            examples:
+              delivery:
+                summary: A payment of 75 reais from another participant
+                value:
+                  amount:
+                    amount: "75.00"
+                    currency: BRL
+                  payeeAccountNumber: "48213907"
+                  payerName: Mercado Sol Ltda
+                  payerParticipant: "87654321"
+      responses:
+        "204":
+          description: The payment is settled, by this delivery or by an earlier one.
+        "400":
+          $ref: "../common/components.yaml#/components/responses/InvalidRequest"
+        "401":
+          $ref: "../common/components.yaml#/components/responses/Unauthenticated"
+        "403":
+          $ref: "../common/components.yaml#/components/responses/InsufficientScope"
+        "409":
+          description: Another payment has this end-to-end ID, or the first delivery had another content.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "../common/components.yaml#/components/schemas/Problem"
+              examples:
+                paymentExists:
+                  $ref: "#/components/examples/PaymentExists"
+        "422":
+          description: The delivery breaks a rule of the domain, and nothing is booked.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "../common/components.yaml#/components/schemas/Problem"
+              examples:
+                unknownPayeeAccount:
+                  $ref: "#/components/examples/UnknownPayeeAccount"
+                amountNotPositive:
+                  $ref: "#/components/examples/AmountNotPositive"
+        default:
+          $ref: "../common/components.yaml#/components/responses/Problem"
+  /v1/outbound-payments/{endToEndId}/answer:
+    put:
+      operationId: answerOutboundPayment
+      summary: Give the final answer for an outbound payment.
+      description: >-
+        Takes the one final answer of the clearing network for an outbound
+        payment that is processing: settled, or refused with a reason (NET-3).
+        After a settled answer, the platform books the payment, and it reads
+        as settled once that is done (PAY-14). After a refused one, the hold
+        is released and the payment is failed (PAY-11). An answer that the
+        platform has already applied changes nothing when it comes again
+        (NET-5).
+      tags:
+        - Clearing network
+      security:
+        - AccessToken:
+            - payments:answer
+      parameters:
+        - $ref: "#/components/parameters/EndToEndIdInPath"
+      requestBody:
+        description: The outcome, and the reason of a refusal.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NetworkAnswer"
+            examples:
+              settled:
+                summary: The network has settled the payment
+                value:
+                  outcome: SETTLED
+              refused:
+                summary: The network has refused the payment
+                value:
+                  outcome: REFUSED
+                  reason: ACCOUNT_CLOSED
+      responses:
+        "204":
+          description: The platform has the answer, from this request or from an earlier one.
+        "400":
+          $ref: "../common/components.yaml#/components/responses/InvalidRequest"
+        "401":
+          $ref: "../common/components.yaml#/components/responses/Unauthenticated"
+        "403":
+          $ref: "../common/components.yaml#/components/responses/InsufficientScope"
+        "404":
+          $ref: "../common/components.yaml#/components/responses/NotFound"
+        "409":
+          description: >-
+            The payment is not processing: it has another final answer, or
+            it never went to the network.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "../common/components.yaml#/components/schemas/Problem"
+              examples:
+                paymentNotProcessing:
+                  $ref: "#/components/examples/PaymentNotProcessing"
+        default:
+          $ref: "../common/components.yaml#/components/responses/Problem"
+
+components:
+  securitySchemes:
+    AccessToken:
+      $ref: "../common/components.yaml#/components/securitySchemes/AccessToken"
+
+  parameters:
+    PaymentIdInPath:
+      name: paymentId
+      in: path
+      required: true
+      description: The payment that the URL names.
+      schema:
+        $ref: "#/components/schemas/PaymentId"
+    AccountIdInPath:
+      name: accountId
+      in: path
+      required: true
+      description: The account that the URL names.
+      schema:
+        $ref: "../common/components.yaml#/components/schemas/AccountId"
+    EndToEndIdInPath:
+      name: endToEndId
+      in: path
+      required: true
+      description: The end-to-end ID of the payment that the URL names.
+      schema:
+        $ref: "#/components/schemas/EndToEndId"
+    PaymentStateFilter:
+      name: state
+      in: query
+      required: false
+      description: Narrows the list to the payments in one state.
+      schema:
+        $ref: "#/components/schemas/PaymentState"
+    PaymentAccountFilter:
+      name: accountId
+      in: query
+      required: false
+      description: Narrows the list to the payments that one account pays or is paid by.
+      schema:
+        $ref: "../common/components.yaml#/components/schemas/AccountId"
+    EndToEndIdFilter:
+      name: endToEndId
+      in: query
+      required: false
+      description: >-
+        Narrows the list to the payment with this end-to-end ID. It is how a
+        client finds an inbound payment, whose identifier it does not know.
+      schema:
+        $ref: "#/components/schemas/EndToEndId"
+
+  headers:
+    PaymentLocation:
+      description: Where the new payment is. A client reads it there until its state is final.
+      required: true
+      schema:
+        type: string
+        format: uri-reference
+        description: The path of the payment.
+        examples:
+          - /v1/payments/c7a1e2d4-5b6f-4a80-9c3e-1d2f3a4b5c6d
+
+  examples:
+    PendingPayment:
+      summary: An outbound payment that waits for approval
+      description: Its amount is above the approval limit of the customer. The fee is at its cap (FEE-2).
+      value:
+        paymentId: f1e2d3c4-b5a6-4978-8a9b-0c1d2e3f4a5b
+        endToEndId: E12345678202611251900k7L8m9N0p1Q
+        kind: OUTBOUND
+        state: PENDING_APPROVAL
+        side: PAYER
+        amount:
+          amount: "2500.00"
+          currency: BRL
+        fee:
+          amount: "10.00"
+          currency: BRL
+        payerAccountId: 9b2f7c1e-3a54-4d0b-8f6e-5c1a2b3d4e5f
+        payerAccountNumber: "48213907"
+        payeeAlias: pagamentos@aurora.example
+        payeeName: Padaria Aurora Ltda
+        payeeParticipant: "87654321"
+        madeBy: 4b7e2a90-1c3d-4f5a-8b6c-7d8e9f0a1b2c
+        createdAt: "2026-11-25T19:00:00Z"
+    ApprovedPayment:
+      summary: A payment that a checker has approved
+      description: It is processing now, and it waits for the answer of the clearing network.
+      value:
+        paymentId: f1e2d3c4-b5a6-4978-8a9b-0c1d2e3f4a5b
+        endToEndId: E12345678202611251900k7L8m9N0p1Q
+        kind: OUTBOUND
+        state: PROCESSING
+        side: PAYER
+        amount:
+          amount: "2500.00"
+          currency: BRL
+        fee:
+          amount: "10.00"
+          currency: BRL
+        payerAccountId: 9b2f7c1e-3a54-4d0b-8f6e-5c1a2b3d4e5f
+        payerAccountNumber: "48213907"
+        payeeAlias: pagamentos@aurora.example
+        payeeName: Padaria Aurora Ltda
+        payeeParticipant: "87654321"
+        madeBy: 4b7e2a90-1c3d-4f5a-8b6c-7d8e9f0a1b2c
+        createdAt: "2026-11-25T19:00:00Z"
+    RejectedPayment:
+      summary: A payment that a checker has rejected
+      description: It has ended, and no money has moved.
+      value:
+        paymentId: f1e2d3c4-b5a6-4978-8a9b-0c1d2e3f4a5b
+        endToEndId: E12345678202611251900k7L8m9N0p1Q
+        kind: OUTBOUND
+        state: REJECTED
+        side: PAYER
+        amount:
+          amount: "2500.00"
+          currency: BRL
+        fee:
+          amount: "10.00"
+          currency: BRL
+        payerAccountId: 9b2f7c1e-3a54-4d0b-8f6e-5c1a2b3d4e5f
+        payerAccountNumber: "48213907"
+        payeeAlias: pagamentos@aurora.example
+        payeeName: Padaria Aurora Ltda
+        payeeParticipant: "87654321"
+        madeBy: 4b7e2a90-1c3d-4f5a-8b6c-7d8e9f0a1b2c
+        createdAt: "2026-11-25T19:00:00Z"
+    CanceledPayment:
+      summary: A payment that its maker has canceled
+      description: The maker withdrew it before a checker decided.
+      value:
+        paymentId: f1e2d3c4-b5a6-4978-8a9b-0c1d2e3f4a5b
+        endToEndId: E12345678202611251900k7L8m9N0p1Q
+        kind: OUTBOUND
+        state: CANCELED
+        side: PAYER
+        amount:
+          amount: "2500.00"
+          currency: BRL
+        fee:
+          amount: "10.00"
+          currency: BRL
+        payerAccountId: 9b2f7c1e-3a54-4d0b-8f6e-5c1a2b3d4e5f
+        payerAccountNumber: "48213907"
+        payeeAlias: pagamentos@aurora.example
+        payeeName: Padaria Aurora Ltda
+        payeeParticipant: "87654321"
+        madeBy: 4b7e2a90-1c3d-4f5a-8b6c-7d8e9f0a1b2c
+        createdAt: "2026-11-25T19:00:00Z"
+    ProcessingPayment:
+      summary: An outbound payment that is processing
+      description: It needed no approval. Its hold is placed, for the amount plus the fee of 1.25%.
+      value:
+        paymentId: c7a1e2d4-5b6f-4a80-9c3e-1d2f3a4b5c6d
+        endToEndId: E12345678202611251830a1B2c3D4e5F
+        kind: OUTBOUND
+        state: PROCESSING
+        side: PAYER
+        amount:
+          amount: "200.00"
+          currency: BRL
+        fee:
+          amount: "2.50"
+          currency: BRL
+        payerAccountId: 9b2f7c1e-3a54-4d0b-8f6e-5c1a2b3d4e5f
+        payerAccountNumber: "48213907"
+        payeeAlias: pagamentos@aurora.example
+        payeeName: Padaria Aurora Ltda
+        payeeParticipant: "87654321"
+        madeBy: 4b7e2a90-1c3d-4f5a-8b6c-7d8e9f0a1b2c
+        createdAt: "2026-11-25T18:30:00Z"
+    SettledOutboundPayment:
+      summary: An outbound payment that the clearing network has settled
+      description: The payer has paid the amount plus the fee, in one ledger transaction.
+      value:
+        paymentId: c7a1e2d4-5b6f-4a80-9c3e-1d2f3a4b5c6d
+        endToEndId: E12345678202611251830a1B2c3D4e5F
+        kind: OUTBOUND
+        state: SETTLED
+        side: PAYER
+        amount:
+          amount: "200.00"
+          currency: BRL
+        fee:
+          amount: "2.50"
+          currency: BRL
+        payerAccountId: 9b2f7c1e-3a54-4d0b-8f6e-5c1a2b3d4e5f
+        payerAccountNumber: "48213907"
+        payeeAlias: pagamentos@aurora.example
+        payeeName: Padaria Aurora Ltda
+        payeeParticipant: "87654321"
+        madeBy: 4b7e2a90-1c3d-4f5a-8b6c-7d8e9f0a1b2c
+        createdAt: "2026-11-25T18:30:00Z"
+    PaymentRefusedByTheNetwork:
+      summary: An outbound payment that the clearing network has refused
+      description: The hold is released. The payment keeps the reason of the network and costs nothing (FEE-4).
+      value:
+        paymentId: 5a6b7c8d-9e0f-4a1b-8c2d-3e4f5a6b7c8d
+        endToEndId: E12345678202611251915h3J4k5L6m7N
+        kind: OUTBOUND
+        state: FAILED
+        side: PAYER
+        amount:
+          amount: "200.00"
+          currency: BRL
+        fee:
+          amount: "2.50"
+          currency: BRL
+        payerAccountId: 9b2f7c1e-3a54-4d0b-8f6e-5c1a2b3d4e5f
+        payerAccountNumber: "48213907"
+        payeeAlias: pagamentos@aurora.example
+        payeeName: Padaria Aurora Ltda
+        payeeParticipant: "87654321"
+        madeBy: 4b7e2a90-1c3d-4f5a-8b6c-7d8e9f0a1b2c
+        failureReason: REFUSED_BY_NETWORK
+        networkReason: ACCOUNT_CLOSED
+        createdAt: "2026-11-25T19:15:00Z"
+    PaymentOverTheDailyLimit:
+      summary: A payment that the daily limit has stopped
+      description: It was created, and it failed before a hold was placed (PAY-9).
+      value:
+        paymentId: 0f1e2d3c-4b5a-4678-9a8b-7c6d5e4f3a2b
+        endToEndId: E12345678202611252110b8C9d0E1f2G
+        kind: INTERNAL
+        state: FAILED
+        side: PAYER
+        amount:
+          amount: "900.00"
+          currency: BRL
+        fee:
+          amount: "0.00"
+          currency: BRL
+        payerAccountId: 9b2f7c1e-3a54-4d0b-8f6e-5c1a2b3d4e5f
+        payerAccountNumber: "48213907"
+        payeeAccountNumber: "75306214"
+        madeBy: 4b7e2a90-1c3d-4f5a-8b6c-7d8e9f0a1b2c
+        failureReason: DAILY_LIMIT
+        createdAt: "2026-11-25T21:10:00Z"
+    InternalPayment:
+      summary: An internal payment that is settled, for the customer of the payer
+      description: An internal payment is free, so its fee is zero (FEE-1).
+      value:
+        paymentId: a3b4c5d6-e7f8-4a9b-8c0d-1e2f3a4b5c6d
+        endToEndId: E12345678202611251845r2S3t4U5v6W
+        kind: INTERNAL
+        state: SETTLED
+        side: PAYER
+        amount:
+          amount: "350.00"
+          currency: BRL
+        fee:
+          amount: "0.00"
+          currency: BRL
+        payerAccountId: 9b2f7c1e-3a54-4d0b-8f6e-5c1a2b3d4e5f
+        payerAccountNumber: "48213907"
+        payeeAccountNumber: "75306214"
+        madeBy: 4b7e2a90-1c3d-4f5a-8b6c-7d8e9f0a1b2c
+        createdAt: "2026-11-25T18:45:00Z"
+    InternalPaymentOfThePayee:
+      summary: The same internal payment, for the customer of the payee
+      description: It shows no fee, no maker and no identifier of the payer account (PAY-15).
+      value:
+        paymentId: a3b4c5d6-e7f8-4a9b-8c0d-1e2f3a4b5c6d
+        endToEndId: E12345678202611251845r2S3t4U5v6W
+        kind: INTERNAL
+        state: SETTLED
+        side: PAYEE
+        amount:
+          amount: "350.00"
+          currency: BRL
+        payerAccountNumber: "48213907"
+        payeeAccountId: 1c2d3e4f-5a6b-4c7d-8e9f-0a1b2c3d4e5f
+        payeeAccountNumber: "75306214"
+        createdAt: "2026-11-25T18:45:00Z"
+    InboundPayment:
+      summary: An inbound payment
+      description: The payer is outside the platform, so the payment shows its name and its participant.
+      value:
+        paymentId: 2d9e4f6a-8b1c-4d3e-a5f6-0718293a4b5c
+        endToEndId: E87654321202611251705Zx9Yw8Vu7Ts
+        kind: INBOUND
+        state: SETTLED
+        side: PAYEE
+        amount:
+          amount: "75.00"
+          currency: BRL
+        payerName: Mercado Sol Ltda
+        payerParticipant: "87654321"
+        payeeAccountId: 9b2f7c1e-3a54-4d0b-8f6e-5c1a2b3d4e5f
+        payeeAccountNumber: "48213907"
+        createdAt: "2026-11-25T17:05:12Z"
+    PaymentPage:
+      summary: The only page of a short list of payments
+      description: An inbound payment and an internal one. A last page has no nextCursor.
+      value:
+        items:
+          - paymentId: 2d9e4f6a-8b1c-4d3e-a5f6-0718293a4b5c
+            endToEndId: E87654321202611251705Zx9Yw8Vu7Ts
+            kind: INBOUND
+            state: SETTLED
+            side: PAYEE
+            amount:
+              amount: "75.00"
+              currency: BRL
+            payerName: Mercado Sol Ltda
+            payerParticipant: "87654321"
+            payeeAccountId: 9b2f7c1e-3a54-4d0b-8f6e-5c1a2b3d4e5f
+            payeeAccountNumber: "48213907"
+            createdAt: "2026-11-25T17:05:12Z"
+          - paymentId: a3b4c5d6-e7f8-4a9b-8c0d-1e2f3a4b5c6d
+            endToEndId: E12345678202611251845r2S3t4U5v6W
+            kind: INTERNAL
+            state: SETTLED
+            side: PAYER
+            amount:
+              amount: "350.00"
+              currency: BRL
+            fee:
+              amount: "0.00"
+              currency: BRL
+            payerAccountId: 9b2f7c1e-3a54-4d0b-8f6e-5c1a2b3d4e5f
+            payerAccountNumber: "48213907"
+            payeeAccountNumber: "75306214"
+            madeBy: 4b7e2a90-1c3d-4f5a-8b6c-7d8e9f0a1b2c
+            createdAt: "2026-11-25T18:45:00Z"
+    TrailOfARejectedPayment:
+      summary: The trail of a payment that a checker rejected
+      description: Two users and two requests, so two correlation IDs.
+      value:
+        items:
+          - sequence: 1
+            state: PENDING_APPROVAL
+            occurredAt: "2026-11-25T19:00:00Z"
+            actor:
+              kind: USER
+              userId: 4b7e2a90-1c3d-4f5a-8b6c-7d8e9f0a1b2c
+            correlationId: 0af7651916cd43dd8448eb211c80319c
+          - sequence: 2
+            state: REJECTED
+            occurredAt: "2026-11-25T19:20:41Z"
+            actor:
+              kind: USER
+              userId: e5d4c3b2-a190-4f8e-9d7c-6b5a49382716
+            correlationId: 4bf92f3577b34da6a3ce929d0e0e4736
+    TrailOfAnInternalPayment:
+      summary: The trail of an internal payment that needed no approval
+      description: The request of the maker caused both events. The platform itself settled the payment.
+      value:
+        items:
+          - sequence: 1
+            state: PROCESSING
+            occurredAt: "2026-11-25T18:45:00Z"
+            actor:
+              kind: USER
+              userId: 4b7e2a90-1c3d-4f5a-8b6c-7d8e9f0a1b2c
+            correlationId: 7c1d0b6e5a4f4e3d9c2b1a0f9e8d7c6b
+          - sequence: 2
+            state: SETTLED
+            occurredAt: "2026-11-25T18:45:00Z"
+            actor:
+              kind: PLATFORM
+            correlationId: 7c1d0b6e5a4f4e3d9c2b1a0f9e8d7c6b
+    TrailOfAnInboundPayment:
+      summary: The trail of an inbound payment
+      description: One event. The clearing network caused it, with its delivery.
+      value:
+        items:
+          - sequence: 1
+            state: SETTLED
+            occurredAt: "2026-11-25T17:05:12Z"
+            actor:
+              kind: CLEARING_NETWORK
+            correlationId: 3e9a8b7c6d5e4f30a1b2c3d4e5f60718
+    LimitsDuringTheDay:
+      summary: The limits of an account, read during the day
+      description: Outside a night there is no night total.
+      value:
+        paymentLimit:
+          amount: "5000.00"
+          currency: BRL
+        dailyLimit:
+          amount: "20000.00"
+          currency: BRL
+        nightLimit:
+          amount: "1000.00"
+          currency: BRL
+        dayTotal:
+          amount: "550.00"
+          currency: BRL
+    LimitsDuringANight:
+      summary: The limits of an account, read during a night
+      description: A payment of 200 reais started processing after 20:00. It counts toward its day and toward the night (LIM-5).
+      value:
+        paymentLimit:
+          amount: "5000.00"
+          currency: BRL
+        dailyLimit:
+          amount: "20000.00"
+          currency: BRL
+        nightLimit:
+          amount: "1000.00"
+          currency: BRL
+        dayTotal:
+          amount: "750.00"
+          currency: BRL
+        nightTotal:
+          amount: "200.00"
+          currency: BRL
+    AmountNotPositive:
+      summary: A payment of zero
+      description: The problem of MON-4. An amount of zero keeps the contract and breaks the rule (ADR 0011).
+      value:
+        type: https://xfeuer.github.io/maker-checker/problems/amount-not-positive
+        title: The amount is not greater than zero.
+        status: 422
+    PaymentLimitExceeded:
+      summary: An amount above the payment limit of the payer account
+      description: The problem of LIM-2. An amount that equals the limit is allowed.
+      value:
+        type: https://xfeuer.github.io/maker-checker/problems/payment-limit-exceeded
+        title: The amount is above the payment limit of the account.
+        status: 422
+    UnknownPayerAccount:
+      summary: A payer account that the customer of the caller does not have
+      description: The problem of PAY-3. An account of another customer does not exist for the caller (CUS-4).
+      value:
+        type: https://xfeuer.github.io/maker-checker/problems/unknown-payer-account
+        title: The payer account does not exist for this customer.
+        status: 422
+    UnknownPayeeAccount:
+      summary: An account number that the platform does not know
+      description: The problem of PAY-4 for an internal payment, and of PAY-12 for an inbound one.
+      value:
+        type: https://xfeuer.github.io/maker-checker/problems/unknown-payee-account
+        title: No account of the platform has this account number.
+        status: 422
+    PayeeIsPayer:
+      summary: An internal payment from an account to itself
+      description: The second half of PAY-4.
+      value:
+        type: https://xfeuer.github.io/maker-checker/problems/payee-is-payer
+        title: The payee is the payer account.
+        status: 422
+    UnknownAlias:
+      summary: An alias that the clearing network does not know
+      description: The problem of NET-2.
+      value:
+        type: https://xfeuer.github.io/maker-checker/problems/unknown-alias
+        title: The clearing network does not know the alias.
+        status: 422
+    DecisionByTheMaker:
+      summary: A checker who made the payment
+      description: The problem of APR-3. The scope alone does not make the decision theirs.
+      value:
+        type: https://xfeuer.github.io/maker-checker/problems/decision-by-the-maker
+        title: The caller is the maker of the payment.
+        status: 403
+    CancellationByAnotherUser:
+      summary: A maker who did not make the payment
+      description: The problem of APR-4. Another maker of the same customer cannot cancel it either.
+      value:
+        type: https://xfeuer.github.io/maker-checker/problems/cancellation-by-another-user
+        title: The caller is not the maker of the payment.
+        status: 403
+    PaymentNotPendingApproval:
+      summary: A decision that comes too late
+      description: The problem of APR-6, and of APR-5 after 24 hours. The payment stays as it is.
+      value:
+        type: https://xfeuer.github.io/maker-checker/problems/payment-not-pending-approval
+        title: The payment does not wait for approval.
+        status: 409
+    PaymentExists:
+      summary: A second payment under one end-to-end ID
+      description: The problem of PAY-6. The first payment stays as it is.
+      value:
+        type: https://xfeuer.github.io/maker-checker/problems/payment-exists
+        title: A payment with this end-to-end ID exists, with another content.
+        status: 409
+    PaymentNotProcessing:
+      summary: An answer for a payment that takes none
+      description: The network gives one final answer (NET-3). The payment keeps the one that it has.
+      value:
+        type: https://xfeuer.github.io/maker-checker/problems/payment-not-processing
+        title: The payment is not processing.
+        status: 409
+
+  schemas:
+    PaymentId:
+      type: string
+      format: uuid
+      description: >-
+        The identifier of a payment. The platform issues it. The hold and the
+        ledger transaction of the payment in account-service carry it too.
+      examples:
+        - c7a1e2d4-5b6f-4a80-9c3e-1d2f3a4b5c6d
+    EndToEndId:
+      type: string
+      description: >-
+        The identifier that a payment keeps at every participant (PAY-6).
+        Whoever starts the payment issues it: the platform for an internal and
+        an outbound payment, the participant of the payer for an inbound one.
+        It has the form that Pix gives it: the letter E, 20 digits and 11
+        letters or digits.
+      pattern: '^E[0-9]{20}[0-9A-Za-z]{11}$'
+      examples:
+        - E12345678202611251830a1B2c3D4e5F
+    Participant:
+      type: string
+      description: An institution on the clearing network, named by its number of eight digits.
+      pattern: '^[0-9]{8}$'
+      examples:
+        - "87654321"
+    Alias:
+      type: string
+      description: >-
+        A name that the clearing network resolves to an account at a
+        participant, such as an e-mail address or a phone number. It is
+        personal data.
+      minLength: 1
+      maxLength: 77
+      x-sensitive: true
+      examples:
+        - pagamentos@aurora.example
+    PartyName:
+      type: string
+      description: >-
+        The name of a payer or a payee outside the platform, as the clearing
+        network gives it. It is personal data.
+      minLength: 1
+      maxLength: 140
+      x-sensitive: true
+      examples:
+        - Padaria Aurora Ltda
+    UserId:
+      type: string
+      description: >-
+        A user, as the sub of their access token names them (ADR 0013). The
+        identity provider chooses its form.
+      minLength: 1
+      maxLength: 255
+      examples:
+        - 4b7e2a90-1c3d-4f5a-8b6c-7d8e9f0a1b2c
+    PaymentKind:
+      type: string
+      description: >-
+        The kind of a payment (PAY-2). INTERNAL pays an account of the
+        platform. OUTBOUND pays an alias, through the clearing network.
+        INBOUND arrives from the clearing network, and nobody creates it.
+      enum:
+        - INTERNAL
+        - OUTBOUND
+        - INBOUND
+      examples:
+        - OUTBOUND
+    PaymentState:
+      type: string
+      description: >-
+        Where a payment stands (PAY-7). PENDING_APPROVAL and PROCESSING are
+        not final. SETTLED, FAILED, REJECTED, CANCELED and EXPIRED are final,
+        and a payment never leaves them. Only a SETTLED payment has moved
+        money.
+      enum:
+        - PENDING_APPROVAL
+        - PROCESSING
+        - SETTLED
+        - FAILED
+        - REJECTED
+        - CANCELED
+        - EXPIRED
+      examples:
+        - PROCESSING
+    PaymentSide:
+      type: string
+      description: >-
+        The side from which the customer of the caller sees a payment. PAYER
+        when it owns the payer account, also when it owns both accounts.
+        PAYEE when it owns only the account that is paid.
+      enum:
+        - PAYER
+        - PAYEE
+      examples:
+        - PAYER
+    FailureReason:
+      type: string
+      description: >-
+        Why a payment failed. DAILY_LIMIT and NIGHT_LIMIT: it would have taken
+        the total of its day or of its night above the limit (LIM-7).
+        INSUFFICIENT_FUNDS: the available balance did not cover its hold
+        (LED-5). REFUSED_BY_NETWORK: the clearing network refused it (PAY-11).
+      enum:
+        - DAILY_LIMIT
+        - NIGHT_LIMIT
+        - INSUFFICIENT_FUNDS
+        - REFUSED_BY_NETWORK
+      examples:
+        - DAILY_LIMIT
+    NetworkReason:
+      type: string
+      description: >-
+        Why the clearing network refused a payment, as a code of the network.
+        The platform keeps the code and does not read it.
+      pattern: '^[A-Z][A-Z0-9]*(_[A-Z0-9]+)*$'
+      maxLength: 64
+      examples:
+        - ACCOUNT_CLOSED
+    NewPayment:
+      description: >-
+        What a maker sends to create a payment. Its kind says which of the two
+        forms it has.
+      oneOf:
+        - $ref: "#/components/schemas/NewInternalPayment"
+        - $ref: "#/components/schemas/NewOutboundPayment"
+      discriminator:
+        propertyName: kind
+        mapping:
+          INTERNAL: "#/components/schemas/NewInternalPayment"
+          OUTBOUND: "#/components/schemas/NewOutboundPayment"
+    NewInternalPayment:
+      type: object
+      description: An internal payment to create. It names the payee by its account number.
+      additionalProperties: false
+      required:
+        - kind
+        - payerAccountId
+        - payeeAccountNumber
+        - amount
+      properties:
+        kind:
+          type: string
+          description: Says that the new payment is internal.
+          enum:
+            - INTERNAL
+          examples:
+            - INTERNAL
+        payerAccountId:
+          $ref: "../common/components.yaml#/components/schemas/AccountId"
+        payeeAccountNumber:
+          $ref: "../common/components.yaml#/components/schemas/AccountNumber"
+        amount:
+          $ref: "../common/components.yaml#/components/schemas/Money"
+    NewOutboundPayment:
+      type: object
+      description: An outbound payment to create. It names the payee by an alias.
+      additionalProperties: false
+      required:
+        - kind
+        - payerAccountId
+        - payeeAlias
+        - amount
+      properties:
+        kind:
+          type: string
+          description: Says that the new payment is outbound.
+          enum:
+            - OUTBOUND
+          examples:
+            - OUTBOUND
+        payerAccountId:
+          $ref: "../common/components.yaml#/components/schemas/AccountId"
+        payeeAlias:
+          $ref: "#/components/schemas/Alias"
+        amount:
+          $ref: "../common/components.yaml#/components/schemas/Money"
+    Payment:
+      type: object
+      description: >-
+        A payment, as the customer of the caller sees it. The customer of the
+        payer sees it from its creation, with its fee, its maker and, once it
+        has failed, the reason. The fee is what the payer pays on top of the
+        amount when the payment settles, and it is zero for an internal
+        payment (FEE-1, FEE-3). The customer of the payee sees an internal
+        payment only once it is settled and an inbound one from its arrival,
+        and it never sees the fee or the maker (PAY-15). An account of the
+        platform shows with its account number, and with its identifier only
+        to the customer that owns it. A payee outside the platform shows with
+        its alias, its name and its participant (NET-2), and a payer outside
+        with its name and its participant.
+      additionalProperties: false
+      required:
+        - paymentId
+        - endToEndId
+        - kind
+        - state
+        - side
+        - amount
+        - createdAt
+      properties:
+        paymentId:
+          $ref: "#/components/schemas/PaymentId"
+        endToEndId:
+          $ref: "#/components/schemas/EndToEndId"
+        kind:
+          $ref: "#/components/schemas/PaymentKind"
+        state:
+          $ref: "#/components/schemas/PaymentState"
+        side:
+          $ref: "#/components/schemas/PaymentSide"
+        amount:
+          $ref: "../common/components.yaml#/components/schemas/Money"
+        fee:
+          $ref: "../common/components.yaml#/components/schemas/Money"
+        payerAccountId:
+          $ref: "../common/components.yaml#/components/schemas/AccountId"
+        payerAccountNumber:
+          $ref: "../common/components.yaml#/components/schemas/AccountNumber"
+        payerName:
+          $ref: "#/components/schemas/PartyName"
+        payerParticipant:
+          $ref: "#/components/schemas/Participant"
+        payeeAccountId:
+          $ref: "../common/components.yaml#/components/schemas/AccountId"
+        payeeAccountNumber:
+          $ref: "../common/components.yaml#/components/schemas/AccountNumber"
+        payeeAlias:
+          $ref: "#/components/schemas/Alias"
+        payeeName:
+          $ref: "#/components/schemas/PartyName"
+        payeeParticipant:
+          $ref: "#/components/schemas/Participant"
+        madeBy:
+          $ref: "#/components/schemas/UserId"
+        failureReason:
+          $ref: "#/components/schemas/FailureReason"
+        networkReason:
+          $ref: "#/components/schemas/NetworkReason"
+        createdAt:
+          type: string
+          format: date-time
+          description: When the payment was created, in UTC. The 24 hours of APR-5 count from it.
+          examples:
+            - "2026-11-25T18:30:00Z"
+    PaymentPage:
+      type: object
+      description: One page of the list of payments.
+      additionalProperties: false
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          description: The payments of the page.
+          items:
+            $ref: "#/components/schemas/Payment"
+          examples:
+            - - paymentId: 2d9e4f6a-8b1c-4d3e-a5f6-0718293a4b5c
+                endToEndId: E87654321202611251705Zx9Yw8Vu7Ts
+                kind: INBOUND
+                state: SETTLED
+                side: PAYEE
+                amount:
+                  amount: "75.00"
+                  currency: BRL
+                payerName: Mercado Sol Ltda
+                payerParticipant: "87654321"
+                payeeAccountId: 9b2f7c1e-3a54-4d0b-8f6e-5c1a2b3d4e5f
+                payeeAccountNumber: "48213907"
+                createdAt: "2026-11-25T17:05:12Z"
+        nextCursor:
+          $ref: "../common/components.yaml#/components/schemas/NextCursor"
+    Decision:
+      type: string
+      description: >-
+        What a checker decides. APPROVED lets the payment start processing.
+        REJECTED ends it.
+      enum:
+        - APPROVED
+        - REJECTED
+      examples:
+        - APPROVED
+    PaymentDecision:
+      type: object
+      description: What a checker sends to decide a payment.
+      additionalProperties: false
+      required:
+        - decision
+      properties:
+        decision:
+          $ref: "#/components/schemas/Decision"
+    ActorKind:
+      type: string
+      description: >-
+        Who can cause an audit event. USER is the maker or the checker whose
+        request did it. CLEARING_NETWORK is the network, with a delivery or
+        an answer. PLATFORM is the platform itself, when it settles, fails or
+        expires a payment by its own rules.
+      enum:
+        - USER
+        - CLEARING_NETWORK
+        - PLATFORM
+      examples:
+        - USER
+    Actor:
+      type: object
+      description: Who caused an audit event (AUD-2). Only a user has an identifier here.
+      additionalProperties: false
+      required:
+        - kind
+      properties:
+        kind:
+          $ref: "#/components/schemas/ActorKind"
+        userId:
+          $ref: "#/components/schemas/UserId"
+    PaymentEvent:
+      type: object
+      description: >-
+        The record of one thing that happened to a payment: its creation, or
+        a change of its state (AUD-1). It shows the state that the payment
+        entered, who caused that and the correlation ID of the request that
+        did (AUD-2). An event that no request caused, such as an expiry, has
+        a correlation ID that the service started. An event is never changed
+        and never deleted (AUD-3).
+      additionalProperties: false
+      required:
+        - sequence
+        - state
+        - occurredAt
+        - actor
+        - correlationId
+      properties:
+        sequence:
+          type: integer
+          description: >-
+            The place of the event in the trail of its payment. The first
+            event has 1, and each next one has one more.
+          minimum: 1
+          examples:
+            - 1
+        state:
+          $ref: "#/components/schemas/PaymentState"
+        occurredAt:
+          type: string
+          format: date-time
+          description: >-
+            When it happened, in UTC. On a clock that stands still, several
+            events carry the same time, and the sequence gives their order.
+          examples:
+            - "2026-11-25T19:00:00Z"
+        actor:
+          $ref: "#/components/schemas/Actor"
+        correlationId:
+          $ref: "../common/components.yaml#/components/schemas/CorrelationId"
+    PaymentEventPage:
+      type: object
+      description: One page of the audit trail of a payment.
+      additionalProperties: false
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          description: The audit events of the page.
+          items:
+            $ref: "#/components/schemas/PaymentEvent"
+          examples:
+            - - sequence: 1
+                state: SETTLED
+                occurredAt: "2026-11-25T17:05:12Z"
+                actor:
+                  kind: CLEARING_NETWORK
+                correlationId: 3e9a8b7c6d5e4f30a1b2c3d4e5f60718
+        nextCursor:
+          $ref: "../common/components.yaml#/components/schemas/NextCursor"
+    AccountLimits:
+      type: object
+      description: >-
+        The limits of an account (LIM-1) and what it has paid out. The day
+        total and the night total count the internal and the outbound
+        payments that started processing in the current day or night and
+        have not failed, each with its amount and without its fee (LIM-5,
+        LIM-6). Days and nights follow the time zone America/Sao_Paulo
+        (TIM-2). Outside a night, there is no night total.
+      additionalProperties: false
+      required:
+        - paymentLimit
+        - dailyLimit
+        - nightLimit
+        - dayTotal
+      properties:
+        paymentLimit:
+          $ref: "../common/components.yaml#/components/schemas/Money"
+        dailyLimit:
+          $ref: "../common/components.yaml#/components/schemas/Money"
+        nightLimit:
+          $ref: "../common/components.yaml#/components/schemas/Money"
+        dayTotal:
+          $ref: "../common/components.yaml#/components/schemas/Money"
+        nightTotal:
+          $ref: "../common/components.yaml#/components/schemas/Money"
+    InboundDelivery:
+      type: object
+      description: What the clearing network sends to deliver an inbound payment.
+      additionalProperties: false
+      required:
+        - amount
+        - payeeAccountNumber
+        - payerName
+        - payerParticipant
+      properties:
+        amount:
+          $ref: "../common/components.yaml#/components/schemas/Money"
+        payeeAccountNumber:
+          $ref: "../common/components.yaml#/components/schemas/AccountNumber"
+        payerName:
+          $ref: "#/components/schemas/PartyName"
+        payerParticipant:
+          $ref: "#/components/schemas/Participant"
+    NetworkAnswer:
+      description: >-
+        The final answer of the clearing network for an outbound payment. Its
+        outcome says which of the two forms it has.
+      oneOf:
+        - $ref: "#/components/schemas/SettledAnswer"
+        - $ref: "#/components/schemas/RefusedAnswer"
+      discriminator:
+        propertyName: outcome
+        mapping:
+          SETTLED: "#/components/schemas/SettledAnswer"
+          REFUSED: "#/components/schemas/RefusedAnswer"
+    SettledAnswer:
+      type: object
+      description: The answer for a payment that the network has settled.
+      additionalProperties: false
+      required:
+        - outcome
+      properties:
+        outcome:
+          type: string
+          description: Says that the network has settled the payment.
+          enum:
+            - SETTLED
+          examples:
+            - SETTLED
+    RefusedAnswer:
+      type: object
+      description: The answer for a payment that the network has refused, with its reason.
+      additionalProperties: false
+      required:
+        - outcome
+        - reason
+      properties:
+        outcome:
+          type: string
+          description: Says that the network has refused the payment.
+          enum:
+            - REFUSED
+          examples:
+            - REFUSED
+        reason:
+          $ref: "#/components/schemas/NetworkReason"
