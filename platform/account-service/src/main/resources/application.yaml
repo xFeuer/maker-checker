@@ -1,3 +1,11 @@
 spring:
   application:
     name: account-service
+
+management:
+  endpoint:
+    health:
+      group:
+        readiness:
+          # ADR 0016: the service is ready only when its database answers.
+          include: readinessState, db

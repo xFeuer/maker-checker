@@ -38,7 +38,7 @@ One rule holds the design together: `automation/` never imports code from `platf
 
 | Concern | Choice |
 |---|---|
-| Platform | Java 25, Spring Boot 4 |
+| Platform | Java 25, Spring Boot 4, PostgreSQL 18 |
 | Contracts | OpenAPI 3.1, linted and rendered by vacuum |
 | Automation | Playwright for Java, JUnit 6, Cucumber |
 | Report | Allure |
@@ -47,7 +47,7 @@ One rule holds the design together: `automation/` never imports code from `platf
 
 ## Build
 
-Requires JDK 25.
+Requires JDK 25 and Docker.
 
 ```
 ./gradlew build
@@ -55,7 +55,9 @@ Requires JDK 25.
 
 On Windows, run `gradlew.bat build`. To fix formatting, run the `spotlessApply` task.
 
-The build also lints the specifications in `contracts/` with vacuum. Gradle downloads it, so the JDK is still all that the build needs. See [ADR 0009](docs/adr/0009-openapi-3-1-contracts-linted-by-vacuum-in-the-build.md).
+Docker is for the component tests of the services. Each one runs a whole service against a real PostgreSQL, which Testcontainers starts in a container. See [ADR 0017](docs/adr/0017-unit-tests-and-component-tests-for-a-service.md).
+
+The build also lints the specifications in `contracts/` with vacuum. Gradle downloads it, so there is nothing to install. See [ADR 0009](docs/adr/0009-openapi-3-1-contracts-linted-by-vacuum-in-the-build.md).
 
 vacuum renders the specifications too. The API reference is in `contracts/build/site/api/index.html`, and the pages of the problem types are next to it. See [ADR 0015](docs/adr/0015-an-api-reference-rendered-by-vacuum-next-to-the-report.md).
 
@@ -68,6 +70,8 @@ Requires JDK 25 and Docker.
 ```
 
 This one command builds the image, starts the stack, runs the system tests against it and stops the stack. The stack stops even when a test fails. Before it stops, the run saves the logs of the stack to `build/stack-logs/stack.log`.
+
+The stack is `account-service` and its database. A service keeps its data in a PostgreSQL server of its own, and that data lives as long as the stack. See [ADR 0016](docs/adr/0016-a-postgresql-database-for-each-service.md).
 
 The run ends with an Allure report, also when a test fails. It is one file, `automation/suites/build/reports/allure/index.html`, and it opens in a browser as it is. See [ADR 0007](docs/adr/0007-allure-behind-a-listener-of-the-framework.md).
 
