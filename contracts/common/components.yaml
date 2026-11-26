@@ -179,7 +179,8 @@ components:
     Unauthenticated:
       description: >-
         The request has no valid access token. It has none at all, or one that
-        is expired, wrongly signed or meant for another service.
+        fails a check of ADR 0013: its type, its issuer, its audience, its
+        signature or its expiry.
       headers:
         WWW-Authenticate:
           $ref: "#/components/headers/WwwAuthenticate"
@@ -332,6 +333,12 @@ components:
       pattern: '^[0-9]{8}$'
       examples:
         - "48213907"
+    CustomerId:
+      type: string
+      format: uuid
+      description: The identifier of a customer, as the token of a user names it.
+      examples:
+        - 6d1f0c52-8a3b-4e7d-9c10-2b4a6e8f0a1c
     CorrelationId:
       type: string
       description: >-

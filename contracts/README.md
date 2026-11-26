@@ -16,8 +16,11 @@ Each service has its own directory, with two specifications:
 | `account-service` | [openapi.yaml](account-service/openapi.yaml) | [hooks.yaml](account-service/hooks.yaml) |
 | `payment-service` | [openapi.yaml](payment-service/openapi.yaml) | [hooks.yaml](payment-service/hooks.yaml) |
 | the clearing network, simulated | [openapi.yaml](clearing-network/openapi.yaml) | [hooks.yaml](clearing-network/hooks.yaml) |
+| the identity provider, simulated | [openapi.yaml](identity-provider/openapi.yaml) | none |
 
 The clearing network is outside the platform, and a simulator stands in for it. Its directory is like the one of a service: `openapi.yaml` is what `payment-service` calls, and `hooks.yaml` is how a test steers the simulator.
+
+The identity provider is outside the platform too, and it has a simulator of its own. Its `openapi.yaml` holds the status and the operation that gives a test a token. It has no `hooks.yaml`: a hook needs a token, and this is where the tokens come from.
 
 The parts that the specifications share are in [common/components.yaml](common/components.yaml): the access token, the problem document, money and balances, the pages of a list, the idempotency key, the correlation ID, the names that several services use and the clock of the hooks. A specification refers to them and does not copy them.
 
@@ -81,6 +84,17 @@ The list is closed. A contract that needs a new scope adds it here and to the ru
 
 A scope opens an operation, and the rules of the [domain model](../docs/domain.md#what-each-actor-may-do) still decide. A request for something of another customer is refused like one for something that does not exist, whatever its scopes: with 404 when the URL names the thing, and with 422 when the body does.
 
+### Access tokens
+
+The simulator of the identity provider issues every token. Its [specification](identity-provider/openapi.yaml) says what a token holds.
+
+- A token names the services that it is for, in its audience: `account-service`, `payment-service` or `clearing-network`. A service refuses a token that does not name it, with 401.
+- A test gets a token for any caller with `POST /v1/tokens`. It names the caller, the customer, the scopes and the audience, and the simulator vouches for them. Anybody may call that operation.
+- A test also gets a token that is wrong in one way: expired, wrongly signed, from another issuer or of another type. For the wrong audience, it names another service.
+- `payment-service` and the clearing network are clients of the provider. Each gets its tokens at the token endpoint, one for each service that it calls.
+- The discovery document, the keys and the token endpoint follow their standards and not these conventions. The specification names them in words, so no rule has an exception for them.
+- Issuing a token answers 200 and not 201, because a token has no path.
+
 ### Hooks
 
 A service has its hooks only when it starts with them switched on, as the local stack does. Without the switch, a path under `/hooks` answers 404.
@@ -102,6 +116,7 @@ A service has its hooks only when it starts with them switched on, as the local 
 
 A field that holds a secret or personal data is marked with `x-sensitive: true`.
 
+- A secret is an access token.
 - Personal data is a name, a tax ID, a phone number, an e-mail address or an alias.
 - What the platform issues is not sensitive: an identifier, an account number, an amount.
 - A marked value can be in a URL. The alias is in the path of two operations of the clearing network, as a key is in the directory of Pix.

@@ -1,0 +1,408 @@
+openapi: 3.1.2
+
+info:
+  title: identity-provider
+  summary: The identity provider, as its simulator offers it to the platform and to a test.
+  description: |-
+    What a service and a test ask the identity provider. The provider is
+    outside the platform, and in this repository a simulator stands in for it
+    (ADR 0013). It vouches for every caller with an access token. A service
+    validates a token alone, with the keys that the provider publishes.
+
+    This specification describes two operations: the status, and the one that
+    gives a test a token for any caller. The simulator has three more
+    addresses. Each follows a standard, and that standard is its contract.
+    They are named here in words and not as operations, because the
+    conventions of these contracts do not hold for them. Their JSON members
+    are in snake_case. The token endpoint takes a form and no idempotency
+    key, and its errors have the form of OAuth 2.0: they are not problem
+    documents.
+
+    ## The addresses of the standards
+
+    - `GET /.well-known/openid-configuration` answers the discovery document,
+      with the member names of
+      [OpenID Connect Discovery 1.0](https://openid.net/specs/openid-connect-discovery-1_0.html).
+      It has five members. Three are addresses: the `issuer`, and the
+      `jwks_uri` and the `token_endpoint` under it, which are the two
+      addresses below. Two say what the token endpoint knows, each with one
+      value: `grant_types_supported` with `client_credentials`, and
+      `token_endpoint_auth_methods_supported` with `client_secret_basic`. The
+      security scheme of every contract points at this document.
+    - `GET /v1/keys` answers the keys of the provider, as a JWK Set of
+      [RFC 7517](https://www.rfc-editor.org/rfc/rfc7517). It has one RSA key.
+      A service validates the signature of a token with it. The `kid` of a
+      key belongs to that key alone: a new key gets a new one.
+    - `POST /v1/token` is the token endpoint of OAuth 2.0
+      ([RFC 6749](https://www.rfc-editor.org/rfc/rfc6749)). It knows one
+      grant: the client credentials of section 4.4. A client proves who it is
+      with its ID and its secret, in HTTP Basic. This is where a service gets
+      a token of its own.
+
+    The simulator has no login, and it issues no ID token. So the discovery
+    document lacks four members that its standard requires:
+    `authorization_endpoint`, `response_types_supported`,
+    `subject_types_supported` and `id_token_signing_alg_values_supported`.
+    They come with the login that the UI needs (ADR 0013). The local stack
+    speaks plain HTTP, and the standards expect HTTPS.
+
+    ## The access token
+
+    A token is a JWT, as [RFC 9068](https://www.rfc-editor.org/rfc/rfc9068)
+    profiles it. The simulator signs it with RS256. Its header has the type
+    `at+jwt` and the `kid` of the key. A token is valid for five minutes of
+    real time: the clock of the hooks does not move its expiry (ADR 0013).
+
+    Its claims:
+
+    - `iss`: the issuer, `http://localhost:8083`.
+    - `sub`: the caller. That is a user, a service or the clearing network.
+    - `aud`: the services that the token is for. A service has the name of
+      its specification: `account-service`, `payment-service` or
+      `clearing-network`. The claim is an array, also with one name. A
+      service refuses a token that does not name it.
+    - `exp` and `iat`: when the token expires and when it was issued, in
+      seconds since 1970.
+    - `jti`: the identifier of the token, a UUID.
+    - `client_id`: the client that got the token.
+    - `scope`: the scopes of the caller, with a space between them. A token
+      without a scope has no such claim.
+    - `customer_id`: the customer that a user acts for. Only the token of a
+      user has it.
+
+    ## The clients
+
+    Two callers are not users: `payment-service` and the clearing network.
+    Each is a client of the provider, with an ID and a secret from the
+    configuration of the stack. A client asks the token endpoint for a token
+    for one service, and its request names the scopes that it wants there:
+
+    - `payment-service` asks for `ledger:read ledger:write` and gets a token
+      for `account-service`. It asks for `network:use` and gets one for
+      `clearing-network`.
+    - `clearing-network` asks for `payments:deliver payments:answer` and
+      gets a token for `payment-service`.
+
+    The audience follows from the scopes, as RFC 9068 has it for a request
+    that names no resource. The `sub` and the `client_id` of such a token
+    are the ID of the client, and the token has no `customer_id`. A request
+    without a scope, with a scope that the client does not have or with
+    scopes of two services is refused with `invalid_scope`. So the clearing
+    network never holds a token that opens the ledger.
+  version: 0.1.0
+  license:
+    name: MIT
+    identifier: MIT
+
+servers:
+  - url: http://localhost:8083
+    description: The local stack, as `deploy/compose.yaml` starts it.
+
+tags:
+  - name: Status
+    description: Whether the simulator is up and which build it runs.
+  - name: Tokens
+    description: The access tokens that a test asks for.
+
+paths:
+  /v1/status:
+    get:
+      operationId: getStatus
+      summary: Report the service name and version.
+      description: >-
+        The smoke-test target. A successful response proves that the simulator
+        is up and speaks this contract. Anybody may call it, without a token.
+      tags:
+        - Status
+      security: []
+      responses:
+        "200":
+          description: The simulator is up.
+          content:
+            application/json:
+              schema:
+                $ref: "../common/components.yaml#/components/schemas/ServiceStatus"
+              examples:
+                up:
+                  summary: A running simulator
+                  value:
+                    service: identity-provider
+                    version: 0.1.0
+        default:
+          $ref: "../common/components.yaml#/components/responses/Problem"
+  /v1/tokens:
+    post:
+      operationId: issueToken
+      summary: Issue a token for any caller.
+      description: >-
+        Gives a test an access token for the caller that the request names: a
+        maker, a checker, a user of another customer, a service or the
+        clearing network (CUS-5). The simulator knows no user and no customer,
+        and it keeps no list of scopes. It checks the form of the request and
+        vouches for what the request says. The token is like one of the token
+        endpoint, and its client_id is test. Anybody may call the operation,
+        without a token, because this is where a test gets its first one. So
+        it is not a hook either: a hook needs a token. A real provider has no
+        such operation. A request can name one defect, and then the token is
+        wrong in exactly that way. For a token that names the wrong service,
+        a test asks for another audience. A repeat with the same key and the
+        same body gets the first response again, with the same token, also
+        when that token has expired since (ADR 0012). The operation has no
+        caller, so an idempotency key belongs to no customer here: all
+        requests share them.
+      tags:
+        - Tokens
+      security: []
+      parameters:
+        - $ref: "../common/components.yaml#/components/parameters/IdempotencyKey"
+      requestBody:
+        description: The caller that the token vouches for, and the services that it is for.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TokenRequest"
+            examples:
+              maker:
+                summary: A maker of a customer
+                value:
+                  sub: 4b7e2a90-1c3d-4f5a-8b6c-7d8e9f0a1b2c
+                  customerId: 6d1f0c52-8a3b-4e7d-9c10-2b4a6e8f0a1c
+                  scopes:
+                    - accounts:read
+                    - payments:read
+                    - payments:create
+                    - payments:cancel
+                  audience:
+                    - account-service
+                    - payment-service
+              checker:
+                summary: A checker of the same customer
+                value:
+                  sub: a3c9e1f7-2b4d-4c6e-9f80-1a2b3c4d5e6f
+                  customerId: 6d1f0c52-8a3b-4e7d-9c10-2b4a6e8f0a1c
+                  scopes:
+                    - accounts:read
+                    - payments:read
+                    - payments:decide
+                  audience:
+                    - account-service
+                    - payment-service
+              makerAndChecker:
+                summary: A user who is a maker and a checker
+                value:
+                  sub: e5f6a7b8-9c0d-4e1f-8a2b-3c4d5e6f7a8b
+                  customerId: 6d1f0c52-8a3b-4e7d-9c10-2b4a6e8f0a1c
+                  scopes:
+                    - accounts:read
+                    - payments:read
+                    - payments:create
+                    - payments:cancel
+                    - payments:decide
+                  audience:
+                    - account-service
+                    - payment-service
+              service:
+                summary: payment-service, as it calls account-service
+                value:
+                  sub: payment-service
+                  scopes:
+                    - ledger:read
+                    - ledger:write
+                  audience:
+                    - account-service
+              test:
+                summary: A test that seeds data and reads the ledger
+                value:
+                  sub: system-tests
+                  scopes:
+                    - hooks:use
+                    - ledger:read
+                    - ledger:write
+                    - network:use
+                  audience:
+                    - account-service
+                    - payment-service
+                    - clearing-network
+              expired:
+                summary: A maker whose token has expired
+                value:
+                  sub: 4b7e2a90-1c3d-4f5a-8b6c-7d8e9f0a1b2c
+                  customerId: 6d1f0c52-8a3b-4e7d-9c10-2b4a6e8f0a1c
+                  scopes:
+                    - accounts:read
+                    - payments:read
+                    - payments:create
+                    - payments:cancel
+                  audience:
+                    - account-service
+                    - payment-service
+                  defect: EXPIRED
+      responses:
+        "200":
+          description: The token, signed now or for an earlier request with this key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IssuedToken"
+              examples:
+                valid:
+                  $ref: "#/components/examples/ValidToken"
+                expired:
+                  $ref: "#/components/examples/ExpiredToken"
+        "400":
+          $ref: "../common/components.yaml#/components/responses/InvalidRequest"
+        "409":
+          description: The first request with this key is still being handled.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "../common/components.yaml#/components/schemas/Problem"
+              examples:
+                requestInProgress:
+                  $ref: "../common/components.yaml#/components/examples/RequestInProgress"
+        "422":
+          description: The key came before, with another request. No token is issued.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "../common/components.yaml#/components/schemas/Problem"
+              examples:
+                idempotencyKeyReused:
+                  $ref: "../common/components.yaml#/components/examples/IdempotencyKeyReused"
+        default:
+          $ref: "../common/components.yaml#/components/responses/Problem"
+
+components:
+  examples:
+    ValidToken:
+      summary: A token for the maker
+      description: >-
+        Its payload names the maker, the customer, two services and four
+        scopes. It expires five minutes after the request.
+      value:
+        accessToken: eyJhbGciOiJSUzI1NiIsInR5cCI6ImF0K2p3dCIsImtpZCI6ImtleS0xIn0.eyJpc3MiOiJodHRwOi8vbG9jYWxob3N0OjgwODMiLCJzdWIiOiI0YjdlMmE5MC0xYzNkLTRmNWEtOGI2Yy03ZDhlOWYwYTFiMmMiLCJhdWQiOlsiYWNjb3VudC1zZXJ2aWNlIiwicGF5bWVudC1zZXJ2aWNlIl0sImV4cCI6MTc5NTYzMTcwMCwiaWF0IjoxNzk1NjMxNDAwLCJqdGkiOiIwZDVjMWE3ZS05M2IyLTRmNmEtOGUxZC0yYzNiNGE1ZjYwNzEiLCJjbGllbnRfaWQiOiJ0ZXN0Iiwic2NvcGUiOiJhY2NvdW50czpyZWFkIHBheW1lbnRzOnJlYWQgcGF5bWVudHM6Y3JlYXRlIHBheW1lbnRzOmNhbmNlbCIsImN1c3RvbWVyX2lkIjoiNmQxZjBjNTItOGEzYi00ZTdkLTljMTAtMmI0YTZlOGYwYTFjIn0.bm90IGEgcmVhbCBzaWduYXR1cmU
+        expiresAt: "2026-11-25T18:35:00Z"
+    ExpiredToken:
+      summary: A token that has expired
+      description: The same maker, with the defect EXPIRED. The token expired an hour before the request.
+      value:
+        accessToken: eyJhbGciOiJSUzI1NiIsInR5cCI6ImF0K2p3dCIsImtpZCI6ImtleS0xIn0.eyJpc3MiOiJodHRwOi8vbG9jYWxob3N0OjgwODMiLCJzdWIiOiI0YjdlMmE5MC0xYzNkLTRmNWEtOGI2Yy03ZDhlOWYwYTFiMmMiLCJhdWQiOlsiYWNjb3VudC1zZXJ2aWNlIiwicGF5bWVudC1zZXJ2aWNlIl0sImV4cCI6MTc5NTYyNzgwMCwiaWF0IjoxNzk1NjI3NTAwLCJqdGkiOiI3YTZiNWM0ZC0zZTJmLTRhMWItOWMwZC1lMWYyYTNiNGM1ZDYiLCJjbGllbnRfaWQiOiJ0ZXN0Iiwic2NvcGUiOiJhY2NvdW50czpyZWFkIHBheW1lbnRzOnJlYWQgcGF5bWVudHM6Y3JlYXRlIHBheW1lbnRzOmNhbmNlbCIsImN1c3RvbWVyX2lkIjoiNmQxZjBjNTItOGEzYi00ZTdkLTljMTAtMmI0YTZlOGYwYTFjIn0.bm90IGEgcmVhbCBzaWduYXR1cmU
+        expiresAt: "2026-11-25T17:30:00Z"
+
+  schemas:
+    Subject:
+      type: string
+      description: >-
+        Who a token is for: the value of its sub. A test chooses it. For a
+        user it is an identifier, such as a UUID. For a service or the
+        clearing network it is the name of that caller.
+      minLength: 1
+      maxLength: 255
+      examples:
+        - 4b7e2a90-1c3d-4f5a-8b6c-7d8e9f0a1b2c
+    Scope:
+      type: string
+      description: >-
+        One scope, in the form that the scopes of the platform have: two
+        words in lower case, with a colon between them. The simulator does
+        not ask whether a contract knows the scope.
+      pattern: '^[a-z]+:[a-z]+$'
+      examples:
+        - payments:create
+    Audience:
+      type: string
+      description: >-
+        The name of a service: account-service, payment-service or
+        clearing-network. The simulator takes every name of that form, so a
+        test can ask for a token that names no service of the stack.
+      pattern: '^[a-z]+(-[a-z]+)*$'
+      examples:
+        - account-service
+    TokenDefect:
+      type: string
+      description: >-
+        The one way in which a token is wrong. Everything else about it is
+        right, so a service can refuse it for this reason alone. EXPIRED: the
+        simulator dates the token 65 minutes back, so it expired an hour
+        before the request. That is longer than any allowance for clocks that
+        differ. WRONG_SIGNATURE: a key that the provider does not publish
+        signed the token, under the kid of the key that it does publish.
+        WRONG_ISSUER: the iss of the token is https://wrong-issuer.example.
+        WRONG_TYPE: the header of the token has the type JWT.
+      enum:
+        - EXPIRED
+        - WRONG_SIGNATURE
+        - WRONG_ISSUER
+        - WRONG_TYPE
+      examples:
+        - EXPIRED
+    TokenRequest:
+      type: object
+      description: >-
+        The caller that a test wants a token for. The sub names the caller,
+        and the customerId the customer that a user acts for. A service and
+        the clearing network have no customer, so a request for one of them
+        leaves it out. A defect makes the token wrong in one way.
+      additionalProperties: false
+      required:
+        - sub
+        - scopes
+        - audience
+      properties:
+        sub:
+          $ref: "#/components/schemas/Subject"
+        customerId:
+          $ref: "../common/components.yaml#/components/schemas/CustomerId"
+        scopes:
+          type: array
+          description: >-
+            What the caller may do: the scopes of the token. The list can be
+            empty, and then the token has no scope claim.
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/Scope"
+          examples:
+            - - accounts:read
+              - payments:read
+        audience:
+          type: array
+          description: The services that the token is for, at least one.
+          minItems: 1
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/Audience"
+          examples:
+            - - account-service
+              - payment-service
+        defect:
+          $ref: "#/components/schemas/TokenDefect"
+    IssuedToken:
+      type: object
+      description: >-
+        An access token, and when it expires. A caller sends the token as a
+        bearer token in the Authorization header.
+      additionalProperties: false
+      required:
+        - accessToken
+        - expiresAt
+      properties:
+        accessToken:
+          type: string
+          description: >-
+            The token: a JWT in its compact form, three parts with dots
+            between them. It is a secret for as long as it is valid. The
+            tokens in the examples of this specification have no real
+            signature.
+          pattern: '^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$'
+          x-sensitive: true
+          examples:
+            - eyJhbGciOiJSUzI1NiIsInR5cCI6ImF0K2p3dCIsImtpZCI6ImtleS0xIn0.eyJpc3MiOiJodHRwOi8vbG9jYWxob3N0OjgwODMiLCJzdWIiOiI0YjdlMmE5MC0xYzNkLTRmNWEtOGI2Yy03ZDhlOWYwYTFiMmMiLCJhdWQiOlsiYWNjb3VudC1zZXJ2aWNlIiwicGF5bWVudC1zZXJ2aWNlIl0sImV4cCI6MTc5NTYzMTcwMCwiaWF0IjoxNzk1NjMxNDAwLCJqdGkiOiIwZDVjMWE3ZS05M2IyLTRmNmEtOGUxZC0yYzNiNGE1ZjYwNzEiLCJjbGllbnRfaWQiOiJ0ZXN0Iiwic2NvcGUiOiJhY2NvdW50czpyZWFkIHBheW1lbnRzOnJlYWQgcGF5bWVudHM6Y3JlYXRlIHBheW1lbnRzOmNhbmNlbCIsImN1c3RvbWVyX2lkIjoiNmQxZjBjNTItOGEzYi00ZTdkLTljMTAtMmI0YTZlOGYwYTFjIn0.bm90IGEgcmVhbCBzaWduYXR1cmU
+        expiresAt:
+          type: string
+          format: date-time
+          description: >-
+            When the token expires, in UTC: the exp of the token. For a token
+            with the defect EXPIRED it is in the past.
+          examples:
+            - "2026-11-25T18:35:00Z"
