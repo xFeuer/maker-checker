@@ -164,7 +164,7 @@ paths:
                 payeeIsPayer:
                   $ref: "#/components/examples/PayeeIsPayer"
                 unknownAlias:
-                  $ref: "#/components/examples/UnknownAlias"
+                  $ref: "../common/components.yaml#/components/examples/UnknownAlias"
         default:
           $ref: "../common/components.yaml#/components/responses/Problem"
     get:
@@ -513,7 +513,7 @@ paths:
                 $ref: "../common/components.yaml#/components/schemas/Problem"
               examples:
                 paymentExists:
-                  $ref: "#/components/examples/PaymentExists"
+                  $ref: "../common/components.yaml#/components/examples/PaymentExists"
         "422":
           description: The delivery breaks a rule of the domain, and nothing is booked.
           content:
@@ -614,7 +614,7 @@ components:
       required: true
       description: The end-to-end ID of the payment that the URL names.
       schema:
-        $ref: "#/components/schemas/EndToEndId"
+        $ref: "../common/components.yaml#/components/schemas/EndToEndId"
     PaymentStateFilter:
       name: state
       in: query
@@ -637,7 +637,7 @@ components:
         Narrows the list to the payment with this end-to-end ID. It is how a
         client finds an inbound payment, whose identifier it does not know.
       schema:
-        $ref: "#/components/schemas/EndToEndId"
+        $ref: "../common/components.yaml#/components/schemas/EndToEndId"
 
   headers:
     PaymentLocation:
@@ -1033,13 +1033,6 @@ components:
         type: https://xfeuer.github.io/maker-checker/problems/payee-is-payer
         title: The payee is the payer account.
         status: 422
-    UnknownAlias:
-      summary: An alias that the clearing network does not know
-      description: The problem of NET-2.
-      value:
-        type: https://xfeuer.github.io/maker-checker/problems/unknown-alias
-        title: The clearing network does not know the alias.
-        status: 422
     DecisionByTheMaker:
       summary: A checker who made the payment
       description: The problem of APR-3. The scope alone does not make the decision theirs.
@@ -1061,13 +1054,6 @@ components:
         type: https://xfeuer.github.io/maker-checker/problems/payment-not-pending-approval
         title: The payment does not wait for approval.
         status: 409
-    PaymentExists:
-      summary: A second payment under one end-to-end ID
-      description: The problem of PAY-6. The first payment stays as it is.
-      value:
-        type: https://xfeuer.github.io/maker-checker/problems/payment-exists
-        title: A payment with this end-to-end ID exists, with another content.
-        status: 409
     PaymentNotProcessing:
       summary: An answer for a payment that takes none
       description: The network gives one final answer (NET-3). The payment keeps the one that it has.
@@ -1085,44 +1071,6 @@ components:
         ledger transaction of the payment in account-service carry it too.
       examples:
         - c7a1e2d4-5b6f-4a80-9c3e-1d2f3a4b5c6d
-    EndToEndId:
-      type: string
-      description: >-
-        The identifier that a payment keeps at every participant (PAY-6).
-        Whoever starts the payment issues it: the platform for an internal and
-        an outbound payment, the participant of the payer for an inbound one.
-        It has the form that Pix gives it: the letter E, 20 digits and 11
-        letters or digits.
-      pattern: '^E[0-9]{20}[0-9A-Za-z]{11}$'
-      examples:
-        - E12345678202611251830a1B2c3D4e5F
-    Participant:
-      type: string
-      description: An institution on the clearing network, named by its number of eight digits.
-      pattern: '^[0-9]{8}$'
-      examples:
-        - "87654321"
-    Alias:
-      type: string
-      description: >-
-        A name that the clearing network resolves to an account at a
-        participant, such as an e-mail address or a phone number. It is
-        personal data.
-      minLength: 1
-      maxLength: 77
-      x-sensitive: true
-      examples:
-        - pagamentos@aurora.example
-    PartyName:
-      type: string
-      description: >-
-        The name of a payer or a payee outside the platform, as the clearing
-        network gives it. It is personal data.
-      minLength: 1
-      maxLength: 140
-      x-sensitive: true
-      examples:
-        - Padaria Aurora Ltda
     UserId:
       type: string
       description: >-
@@ -1186,15 +1134,6 @@ components:
         - REFUSED_BY_NETWORK
       examples:
         - DAILY_LIMIT
-    NetworkReason:
-      type: string
-      description: >-
-        Why the clearing network refused a payment, as a code of the network.
-        The platform keeps the code and does not read it.
-      pattern: '^[A-Z][A-Z0-9]*(_[A-Z0-9]+)*$'
-      maxLength: 64
-      examples:
-        - ACCOUNT_CLOSED
     NewPayment:
       description: >-
         What a maker sends to create a payment. Its kind says which of the two
@@ -1250,7 +1189,7 @@ components:
         payerAccountId:
           $ref: "../common/components.yaml#/components/schemas/AccountId"
         payeeAlias:
-          $ref: "#/components/schemas/Alias"
+          $ref: "../common/components.yaml#/components/schemas/Alias"
         amount:
           $ref: "../common/components.yaml#/components/schemas/Money"
     Payment:
@@ -1280,7 +1219,7 @@ components:
         paymentId:
           $ref: "#/components/schemas/PaymentId"
         endToEndId:
-          $ref: "#/components/schemas/EndToEndId"
+          $ref: "../common/components.yaml#/components/schemas/EndToEndId"
         kind:
           $ref: "#/components/schemas/PaymentKind"
         state:
@@ -1296,25 +1235,25 @@ components:
         payerAccountNumber:
           $ref: "../common/components.yaml#/components/schemas/AccountNumber"
         payerName:
-          $ref: "#/components/schemas/PartyName"
+          $ref: "../common/components.yaml#/components/schemas/PartyName"
         payerParticipant:
-          $ref: "#/components/schemas/Participant"
+          $ref: "../common/components.yaml#/components/schemas/Participant"
         payeeAccountId:
           $ref: "../common/components.yaml#/components/schemas/AccountId"
         payeeAccountNumber:
           $ref: "../common/components.yaml#/components/schemas/AccountNumber"
         payeeAlias:
-          $ref: "#/components/schemas/Alias"
+          $ref: "../common/components.yaml#/components/schemas/Alias"
         payeeName:
-          $ref: "#/components/schemas/PartyName"
+          $ref: "../common/components.yaml#/components/schemas/PartyName"
         payeeParticipant:
-          $ref: "#/components/schemas/Participant"
+          $ref: "../common/components.yaml#/components/schemas/Participant"
         madeBy:
           $ref: "#/components/schemas/UserId"
         failureReason:
           $ref: "#/components/schemas/FailureReason"
         networkReason:
-          $ref: "#/components/schemas/NetworkReason"
+          $ref: "../common/components.yaml#/components/schemas/NetworkReason"
         createdAt:
           type: string
           format: date-time
@@ -1493,9 +1432,9 @@ components:
         payeeAccountNumber:
           $ref: "../common/components.yaml#/components/schemas/AccountNumber"
         payerName:
-          $ref: "#/components/schemas/PartyName"
+          $ref: "../common/components.yaml#/components/schemas/PartyName"
         payerParticipant:
-          $ref: "#/components/schemas/Participant"
+          $ref: "../common/components.yaml#/components/schemas/Participant"
     NetworkAnswer:
       description: >-
         The final answer of the clearing network for an outbound payment. Its
@@ -1538,4 +1477,4 @@ components:
           examples:
             - REFUSED
         reason:
-          $ref: "#/components/schemas/NetworkReason"
+          $ref: "../common/components.yaml#/components/schemas/NetworkReason"

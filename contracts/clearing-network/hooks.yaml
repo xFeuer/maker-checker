@@ -1,0 +1,472 @@
+openapi: 3.1.2
+
+info:
+  title: clearing-network hooks
+  summary: How a test steers the simulator of the clearing network.
+  description: >-
+    The hooks of the simulator of the clearing network. A test seeds an alias
+    with what the network does with a payment to it, gives the answer for a
+    payment that the network holds, and makes the network deliver an inbound
+    payment. The simulator always has its hooks, because it has no
+    production. Every hook needs a token with the scope hooks:use. See ADR
+    0014.
+  version: 0.1.0
+  license:
+    name: MIT
+    identifier: MIT
+
+servers:
+  - url: http://localhost:8082
+    description: The local stack, as `deploy/compose.yaml` starts it.
+
+tags:
+  - name: Seeding
+    description: What the network knows before a payment arrives.
+  - name: Steering
+    description: What a test makes the network do.
+
+paths:
+  /hooks/v1/aliases/{alias}:
+    put:
+      operationId: seedAlias
+      summary: Seed an alias.
+      description: >-
+        Makes the network know an alias: who the payee is, and what the
+        network does with a payment to it. With an answer in the seed, the
+        network gives that answer on its own, a moment after it has taken a
+        payment. Without one, it holds every payment to the alias until a
+        test gives the answer. An alias that no test seeded is unknown
+        (NET-2). A repeat changes nothing. Another content replaces the seed,
+        for the payments that the network takes after that.
+      tags:
+        - Seeding
+      security:
+        - AccessToken:
+            - hooks:use
+      parameters:
+        - $ref: "#/components/parameters/AliasInPath"
+      requestBody:
+        description: The payee behind the alias, and the answer of the network.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AliasSeed"
+            examples:
+              settles:
+                summary: An alias whose payments the network settles
+                value:
+                  name: Padaria Aurora Ltda
+                  participant: "87654321"
+                  answer:
+                    outcome: SETTLED
+              refuses:
+                summary: An alias whose payments the network refuses
+                value:
+                  name: Padaria Aurora Ltda
+                  participant: "87654321"
+                  answer:
+                    outcome: REFUSED
+                    reason: ACCOUNT_CLOSED
+              holds:
+                summary: An alias whose payments the network holds
+                value:
+                  name: Padaria Aurora Ltda
+                  participant: "87654321"
+              settlesTwice:
+                summary: An alias whose payments the network settles, with the answer sent twice
+                value:
+                  name: Padaria Aurora Ltda
+                  participant: "87654321"
+                  answer:
+                    outcome: SETTLED
+                    times: 2
+              settlesWithoutSaying:
+                summary: An alias whose payments the network settles, with no answer sent
+                value:
+                  name: Padaria Aurora Ltda
+                  participant: "87654321"
+                  answer:
+                    outcome: SETTLED
+                    times: 0
+      responses:
+        "204":
+          description: The network knows the alias.
+        "400":
+          $ref: "../common/components.yaml#/components/responses/InvalidRequest"
+        "401":
+          $ref: "../common/components.yaml#/components/responses/Unauthenticated"
+        "403":
+          $ref: "../common/components.yaml#/components/responses/InsufficientScope"
+        default:
+          $ref: "../common/components.yaml#/components/responses/Problem"
+  /hooks/v1/payments/{endToEndId}/answer:
+    put:
+      operationId: answerPayment
+      summary: Give the answer for a held payment.
+      description: >-
+        Gives the final answer for a payment that the network holds (NET-3).
+        From then on, the status of the payment shows the answer. The network
+        also sends the answer to the platform as many times as the request
+        says, and it has done so before this hook responds. The response
+        shows what the platform answered each time. Those calls continue the
+        trace of the request that sent the payment, not the trace of this
+        one. A repeat changes nothing and sends nothing again.
+      tags:
+        - Steering
+      security:
+        - AccessToken:
+            - hooks:use
+      parameters:
+        - $ref: "#/components/parameters/EndToEndIdInPath"
+      requestBody:
+        description: The answer, and how many times the network sends it.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScriptedAnswer"
+            examples:
+              settled:
+                summary: The network has settled the payment
+                value:
+                  outcome: SETTLED
+              refusedTwice:
+                summary: The network has refused the payment, and it says so twice
+                value:
+                  outcome: REFUSED
+                  reason: ACCOUNT_CLOSED
+                  times: 2
+              settledOnlyInTheStatus:
+                summary: The network has settled the payment, and it sends no answer
+                value:
+                  outcome: SETTLED
+                  times: 0
+      responses:
+        "200":
+          description: The network has the answer, and it has made its calls.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlatformCalls"
+              examples:
+                sentOnce:
+                  $ref: "#/components/examples/AnswerSentOnce"
+                sentTwice:
+                  $ref: "#/components/examples/AnswerSentTwice"
+                notSent:
+                  $ref: "#/components/examples/AnswerNotSent"
+        "400":
+          $ref: "../common/components.yaml#/components/responses/InvalidRequest"
+        "401":
+          $ref: "../common/components.yaml#/components/responses/Unauthenticated"
+        "403":
+          $ref: "../common/components.yaml#/components/responses/InsufficientScope"
+        "404":
+          $ref: "../common/components.yaml#/components/responses/NotFound"
+        "409":
+          description: >-
+            The payment has another final answer: a test gave it, or the
+            network gave it on its own.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "../common/components.yaml#/components/schemas/Problem"
+              examples:
+                answerExists:
+                  $ref: "#/components/examples/AnswerExists"
+        default:
+          $ref: "../common/components.yaml#/components/responses/Problem"
+  /hooks/v1/inbound-payments/{endToEndId}:
+    put:
+      operationId: deliverInboundPayment
+      summary: Deliver an inbound payment.
+      description: >-
+        Makes the network deliver an inbound payment to the platform, once or
+        twice (PAY-12, PAY-13). The test chooses the end-to-end ID, as the
+        participant of the payer would. The network has delivered before this
+        hook responds, and the response shows what the platform answered each
+        time. The deliveries continue the trace of this request. A repeat
+        changes nothing and delivers nothing again.
+      tags:
+        - Steering
+      security:
+        - AccessToken:
+            - hooks:use
+      parameters:
+        - $ref: "#/components/parameters/EndToEndIdInPath"
+      requestBody:
+        description: The inbound payment, and how many times the network delivers it.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InboundOrder"
+            examples:
+              once:
+                summary: A payment of 75 reais, delivered once
+                value:
+                  amount:
+                    amount: "75.00"
+                    currency: BRL
+                  payeeAccountNumber: "48213907"
+                  payerName: Mercado Sol Ltda
+                  payerParticipant: "87654321"
+              twice:
+                summary: The same payment, delivered twice
+                value:
+                  amount:
+                    amount: "75.00"
+                    currency: BRL
+                  payeeAccountNumber: "48213907"
+                  payerName: Mercado Sol Ltda
+                  payerParticipant: "87654321"
+                  times: 2
+      responses:
+        "200":
+          description: The network has delivered the payment.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlatformCalls"
+              examples:
+                deliveredOnce:
+                  $ref: "#/components/examples/DeliveredOnce"
+                deliveredTwice:
+                  $ref: "#/components/examples/DeliveredTwice"
+                refused:
+                  $ref: "#/components/examples/DeliveryRefused"
+        "400":
+          $ref: "../common/components.yaml#/components/responses/InvalidRequest"
+        "401":
+          $ref: "../common/components.yaml#/components/responses/Unauthenticated"
+        "403":
+          $ref: "../common/components.yaml#/components/responses/InsufficientScope"
+        "409":
+          description: The network has a payment with this end-to-end ID, with another content.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "../common/components.yaml#/components/schemas/Problem"
+              examples:
+                paymentExists:
+                  $ref: "../common/components.yaml#/components/examples/PaymentExists"
+        default:
+          $ref: "../common/components.yaml#/components/responses/Problem"
+
+components:
+  securitySchemes:
+    AccessToken:
+      $ref: "../common/components.yaml#/components/securitySchemes/AccessToken"
+
+  parameters:
+    AliasInPath:
+      name: alias
+      in: path
+      required: true
+      description: The alias that the test seeds.
+      schema:
+        $ref: "../common/components.yaml#/components/schemas/Alias"
+    EndToEndIdInPath:
+      name: endToEndId
+      in: path
+      required: true
+      description: The end-to-end ID of the payment that the hook is about.
+      schema:
+        $ref: "../common/components.yaml#/components/schemas/EndToEndId"
+
+  examples:
+    AnswerSentOnce:
+      summary: An answer that the network sent once
+      description: The platform took the answer.
+      value:
+        calls:
+          - status: 204
+    AnswerSentTwice:
+      summary: An answer that the network sent twice
+      description: The platform took both. The second one changed nothing there (NET-5).
+      value:
+        calls:
+          - status: 204
+          - status: 204
+    AnswerNotSent:
+      summary: An answer that the network did not send
+      description: The request asked for no call. The platform learns the answer when it asks for the status.
+      value:
+        calls: []
+    DeliveredOnce:
+      summary: A payment that the network delivered once
+      description: The platform booked the payment.
+      value:
+        calls:
+          - status: 204
+    DeliveredTwice:
+      summary: A payment that the network delivered twice
+      description: The platform booked the payment once, and it answered both deliveries alike (PAY-13).
+      value:
+        calls:
+          - status: 204
+          - status: 204
+    DeliveryRefused:
+      summary: A delivery that the platform refused
+      description: The platform does not know the account number, so it booked nothing (PAY-12).
+      value:
+        calls:
+          - status: 422
+            problemType: https://xfeuer.github.io/maker-checker/problems/unknown-payee-account
+    AnswerExists:
+      summary: A second answer for one payment
+      description: The network gives one final answer (NET-3). The first one stays.
+      value:
+        type: https://xfeuer.github.io/maker-checker/problems/answer-exists
+        title: The payment has another final answer.
+        status: 409
+
+  schemas:
+    AliasSeed:
+      type: object
+      description: >-
+        What a test sends to seed an alias: the payee behind it, and the
+        answer that the network gives to a payment to it. Without an answer,
+        the network holds such a payment.
+      additionalProperties: false
+      required:
+        - name
+        - participant
+      properties:
+        name:
+          $ref: "../common/components.yaml#/components/schemas/PartyName"
+        participant:
+          $ref: "../common/components.yaml#/components/schemas/Participant"
+        answer:
+          $ref: "#/components/schemas/ScriptedAnswer"
+    ScriptedAnswer:
+      description: >-
+        A final answer of the network that a test chooses, with how many
+        times the network sends it. Its outcome says which of the two forms
+        it has.
+      oneOf:
+        - $ref: "#/components/schemas/ScriptedSettlement"
+        - $ref: "#/components/schemas/ScriptedRefusal"
+      discriminator:
+        propertyName: outcome
+        mapping:
+          SETTLED: "#/components/schemas/ScriptedSettlement"
+          REFUSED: "#/components/schemas/ScriptedRefusal"
+      examples:
+        - outcome: REFUSED
+          reason: ACCOUNT_CLOSED
+          times: 2
+    ScriptedSettlement:
+      type: object
+      description: The answer that the network has settled a payment.
+      additionalProperties: false
+      required:
+        - outcome
+      properties:
+        outcome:
+          type: string
+          description: Says that the network settles.
+          enum:
+            - SETTLED
+          examples:
+            - SETTLED
+        times:
+          $ref: "#/components/schemas/AnswerTimes"
+    ScriptedRefusal:
+      type: object
+      description: The answer that the network has refused a payment, with a reason that the test chooses.
+      additionalProperties: false
+      required:
+        - outcome
+        - reason
+      properties:
+        outcome:
+          type: string
+          description: Says that the network refuses.
+          enum:
+            - REFUSED
+          examples:
+            - REFUSED
+        reason:
+          $ref: "../common/components.yaml#/components/schemas/NetworkReason"
+        times:
+          $ref: "#/components/schemas/AnswerTimes"
+    AnswerTimes:
+      type: integer
+      description: >-
+        How many times the network sends an answer to the platform. Without
+        it, once. With 0 the network sends nothing, and only the status of
+        the payment shows the answer (NET-4). With 2 the answer comes twice
+        (NET-5).
+      minimum: 0
+      maximum: 2
+      default: 1
+      examples:
+        - 2
+    InboundOrder:
+      type: object
+      description: What a test sends to make the network deliver an inbound payment.
+      additionalProperties: false
+      required:
+        - amount
+        - payeeAccountNumber
+        - payerName
+        - payerParticipant
+      properties:
+        amount:
+          $ref: "../common/components.yaml#/components/schemas/Money"
+        payeeAccountNumber:
+          $ref: "../common/components.yaml#/components/schemas/AccountNumber"
+        payerName:
+          $ref: "../common/components.yaml#/components/schemas/PartyName"
+        payerParticipant:
+          $ref: "../common/components.yaml#/components/schemas/Participant"
+        times:
+          $ref: "#/components/schemas/DeliveryTimes"
+    DeliveryTimes:
+      type: integer
+      description: >-
+        How many times the network delivers an inbound payment. Without it,
+        once. With 2 the same delivery comes twice (PAY-13).
+      minimum: 1
+      maximum: 2
+      default: 1
+      examples:
+        - 2
+    PlatformCall:
+      type: object
+      description: One call of the network to the platform, with what the platform answered.
+      additionalProperties: false
+      required:
+        - status
+      properties:
+        status:
+          type: integer
+          description: The status code of the response of the platform.
+          minimum: 100
+          maximum: 599
+          examples:
+            - 204
+        problemType:
+          type: string
+          format: uri
+          description: The type of the problem, when the platform refused the call.
+          examples:
+            - https://xfeuer.github.io/maker-checker/problems/unknown-payee-account
+    PlatformCalls:
+      type: object
+      description: The calls that the network made to the platform for one hook request, in their order.
+      additionalProperties: false
+      required:
+        - calls
+      properties:
+        calls:
+          type: array
+          description: One entry for each call. It is empty when the network made none.
+          maxItems: 2
+          items:
+            $ref: "#/components/schemas/PlatformCall"
+          examples:
+            - - status: 204
+              - status: 204
