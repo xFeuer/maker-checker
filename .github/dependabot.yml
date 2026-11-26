@@ -20,3 +20,13 @@ updates:
         update-types:
           - minor
           - patch
+
+  # ADR 0016: the image of the databases. A new minor of PostgreSQL is an update. A new major is a decision.
+  - package-ecosystem: docker-compose
+    directory: /deploy
+    schedule:
+      interval: weekly
+    ignore:
+      - dependency-name: postgres
+        update-types:
+          - version-update:semver-major

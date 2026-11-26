@@ -4,6 +4,13 @@ services:
   account-service:
     build:
       context: ../platform/account-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://account-db:5432/account
+      SPRING_DATASOURCE_USERNAME: account
+      SPRING_DATASOURCE_PASSWORD: account
+    depends_on:
+      account-db:
+        condition: service_healthy
     ports:
       # Loopback only: the stack is for tests on this machine.
       - "127.0.0.1:8080:8080"
@@ -14,4 +21,23 @@ services:
       timeout: 3s
       retries: 3
       start_period: 60s
+      start_interval: 1s
+
+  # ADR 0016: each service has a PostgreSQL server of its own. It has no port on the host, so a test reaches the data
+  # only through the API of the service. It has no named volume either: every start of the stack begins empty.
+  account-db:
+    # The build reads this image here and runs the component tests of a service on it.
+    image: postgres:18.7-alpine
+    environment:
+      POSTGRES_DB: account
+      POSTGRES_USER: account
+      # No secret: only the stack reaches this database, and it lives as long as the stack.
+      POSTGRES_PASSWORD: account
+    healthcheck:
+      # Over TCP, so that the server that only prepares the first start does not count.
+      test: ["CMD", "pg_isready", "--host=127.0.0.1", "--username=account", "--dbname=account"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 30s
       start_interval: 1s

@@ -53,8 +53,9 @@ val compose = listOf("docker", "compose", "--file", "deploy/compose.yaml")
 val saveStackLogs =
     tasks.register<Exec>("saveStackLogs") {
         description = "Saves the logs of the stack to build/stack-logs/stack.log."
-        // The command prints what every container wrote, to its standard output and to its standard error.
-        commandLine(compose + listOf("logs", "--no-color"))
+        // The command prints what every container wrote, to its standard output and to its standard error. It
+        // prints one container after the other, so each line carries its time.
+        commandLine(compose + listOf("logs", "--no-color", "--timestamps"))
         val logFile = layout.buildDirectory.file("stack-logs/stack.log")
         outputs.file(logFile)
         // Gradle cannot see the stack, so the logs of an earlier run say nothing about this one.
@@ -74,8 +75,10 @@ val saveStackLogs =
 
 val stopStack =
     tasks.register<Exec>("stopStack") {
-        description = "Stops the stack and removes its containers."
-        commandLine(compose + "down")
+        description = "Stops the stack and removes its containers and their data."
+        // ADR 0016: the data of a database lives as long as the stack. The image keeps it in a volume without a
+        // name, and this removes that volume too.
+        commandLine(compose + listOf("down", "--volumes"))
         // The system tests need the stack until they end, and its logs go with the containers.
         mustRunAfter(":automation:suites:systemTest", saveStackLogs)
     }

@@ -30,3 +30,5 @@ An accepted ADR is not edited to change its decision. A new ADR supersedes it.
 | [0013](0013-access-tokens-from-an-identity-provider-outside-the-platform.md) | Access tokens from an identity provider outside the platform | Accepted |
 | [0014](0014-testability-hooks-in-the-services-off-by-default.md) | Testability hooks in the services, off by default | Accepted |
 | [0015](0015-an-api-reference-rendered-by-vacuum-next-to-the-report.md) | An API reference rendered by vacuum, next to the report | Accepted |
+| [0016](0016-a-postgresql-database-for-each-service.md) | A PostgreSQL database for each service | Accepted |
+| [0017](0017-unit-tests-and-component-tests-for-a-service.md) | Unit tests and component tests for a service | Accepted |
