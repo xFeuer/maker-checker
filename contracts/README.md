@@ -15,6 +15,9 @@ Each service has its own directory, with two specifications:
 |---|---|---|
 | `account-service` | [openapi.yaml](account-service/openapi.yaml) | [hooks.yaml](account-service/hooks.yaml) |
 | `payment-service` | [openapi.yaml](payment-service/openapi.yaml) | [hooks.yaml](payment-service/hooks.yaml) |
+| the clearing network, simulated | [openapi.yaml](clearing-network/openapi.yaml) | [hooks.yaml](clearing-network/hooks.yaml) |
+
+The clearing network is outside the platform, and a simulator stands in for it. Its directory is like the one of a service: `openapi.yaml` is what `payment-service` calls, and `hooks.yaml` is how a test steers the simulator.
 
 The parts that the specifications share are in [common/components.yaml](common/components.yaml): the access token, the problem document, money and balances, the pages of a list, the idempotency key, the correlation ID, the names that several services use and the clock of the hooks. A specification refers to them and does not copy them.
 
@@ -26,7 +29,7 @@ Six conventions have a decision record:
 - **Money.** Money is an object such as `{ "amount": "10.50", "currency": "BRL" }`. The amount is a string with exactly two decimals, and no schema has the type `number`. See [ADR 0011](../docs/adr/0011-money-as-a-decimal-string-with-its-currency.md).
 - **Idempotency.** Every `POST` takes an `Idempotency-Key`. Every other change is a `PUT` or a `DELETE` on a URL that names the thing. See [ADR 0012](../docs/adr/0012-an-idempotency-key-for-every-post.md).
 - **Callers.** A caller sends an access token of the identity provider, as a bearer token. Its scopes say what the caller may do, and every operation names the scopes that it needs. See [ADR 0013](../docs/adr/0013-access-tokens-from-an-identity-provider-outside-the-platform.md).
-- **Correlation IDs.** A caller may send the W3C header `traceparent`. Its trace ID is the correlation ID of the request: a service passes it on with every call that it makes, and writes it into its logs and its audit events. A service starts one for a request that has none. See [ADR 0014](../docs/adr/0014-testability-hooks-in-the-services-off-by-default.md).
+- **Correlation IDs.** A caller may send the W3C header `traceparent`. Its trace ID is the correlation ID of the request: a service passes it on with every call that it makes, and writes it into its logs and its audit events. A service starts one for a request that has none. The clearing network gives its answer for a payment in the trace of the request that sent the payment. See [ADR 0014](../docs/adr/0014-testability-hooks-in-the-services-off-by-default.md).
 - **Hooks.** A hook is an operation that only a test needs: the clock, and the data that onboarding would create. It is off in production, it needs a scope of its own, and it has a specification of its own. See [ADR 0014](../docs/adr/0014-testability-hooks-in-the-services-off-by-default.md).
 
 The smaller ones:
@@ -71,6 +74,7 @@ The scopes:
 | `payments:answer` | give the final answer for an outbound payment | the clearing network |
 | `ledger:read` | read every account, every hold and every ledger transaction | `payment-service`, and a test that checks the ledger |
 | `ledger:write` | place and release a hold, and book a ledger transaction | `payment-service`, and a test that puts money into an account |
+| `network:use` | resolve an alias at the clearing network, send a payment to it and read the status of a payment | `payment-service`, and a test that asks the network what it received |
 | `hooks:use` | call the hooks of a service | a test: only the simulator of the identity provider issues it |
 
 The list is closed. A contract that needs a new scope adds it here and to the rule `scopes-are-known` in [ruleset.yaml](ruleset.yaml).
@@ -87,6 +91,12 @@ A service has its hooks only when it starts with them switched on, as the local 
 - **Seeding.** A test creates what onboarding would, and it chooses the identifiers: an account in `account-service`, the approval limit of a customer and the limits of an account in `payment-service`.
 - No hook puts money into an account. A test books it with the ledger operation of `account-service`.
 - No hook wipes data. Every test seeds a customer of its own.
+- **The clearing network.** Its simulator always has its hooks, because it has no production.
+  - A test seeds an alias with the payee behind it and with what the network does with a payment to it: settle, refuse or hold. An alias that no test seeded is unknown.
+  - For a payment that the network holds, the test gives the answer when it wants.
+  - An answer says how many times the network sends it: 0, 1 or 2. With 0, only the status of the payment shows it.
+  - A test makes the network deliver an inbound payment, once or twice.
+  - What a test asks for through a hook has happened before the hook responds. What the network does on its own comes a moment later, so a test waits for it.
 
 ### Sensitive fields
 
@@ -94,8 +104,9 @@ A field that holds a secret or personal data is marked with `x-sensitive: true`.
 
 - Personal data is a name, a tax ID, a phone number, an e-mail address or an alias.
 - What the platform issues is not sensitive: an identifier, an account number, an amount.
+- A marked value can be in a URL. The alias is in the path of two operations of the clearing network, as a key is in the directory of Pix.
 
-The report of a test run has to show the value of a marked field masked ([ADR 0007](../docs/adr/0007-allure-behind-a-listener-of-the-framework.md)). The framework learns that before its first test handles such a field.
+The report of a test run has to show the value of a marked field masked, in a body and in a URL ([ADR 0007](../docs/adr/0007-allure-behind-a-listener-of-the-framework.md)). The framework learns that before its first test handles such a field.
 
 ## Lint
 

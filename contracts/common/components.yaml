@@ -278,6 +278,18 @@ components:
         type: https://xfeuer.github.io/maker-checker/problems/request-in-progress
         title: The first request with this idempotency key is still being handled.
         status: 409
+    UnknownAlias:
+      summary: An alias that the clearing network does not know
+      value:
+        type: https://xfeuer.github.io/maker-checker/problems/unknown-alias
+        title: The clearing network does not know the alias.
+        status: 422
+    PaymentExists:
+      summary: A second payment under one end-to-end ID
+      value:
+        type: https://xfeuer.github.io/maker-checker/problems/payment-exists
+        title: A payment with this end-to-end ID exists, with another content.
+        status: 409
     StandingClock:
       summary: A clock that a test has set
       value:
@@ -328,6 +340,53 @@ components:
       pattern: '^[0-9a-f]{32}$'
       examples:
         - 0af7651916cd43dd8448eb211c80319c
+    EndToEndId:
+      type: string
+      description: >-
+        The identifier that a payment keeps at every participant (PAY-6).
+        Whoever starts the payment issues it: the platform for an internal and
+        an outbound payment, the participant of the payer for an inbound one.
+        It has the form that Pix gives it: the letter E, 20 digits and 11
+        letters or digits.
+      pattern: '^E[0-9]{20}[0-9A-Za-z]{11}$'
+      examples:
+        - E12345678202611251830a1B2c3D4e5F
+    Participant:
+      type: string
+      description: An institution on the clearing network, named by its number of eight digits.
+      pattern: '^[0-9]{8}$'
+      examples:
+        - "87654321"
+    Alias:
+      type: string
+      description: >-
+        A name that the clearing network resolves to an account at a
+        participant, such as an e-mail address or a phone number. It has 1 to
+        77 letters, digits and signs out of @ . _ + and -, so that it fits
+        into a URL as it is. It is personal data.
+      pattern: '^[A-Za-z0-9@._+-]{1,77}$'
+      x-sensitive: true
+      examples:
+        - pagamentos@aurora.example
+    PartyName:
+      type: string
+      description: >-
+        The name of a payer or a payee outside the platform, as the clearing
+        network gives it. It is personal data.
+      minLength: 1
+      maxLength: 140
+      x-sensitive: true
+      examples:
+        - Padaria Aurora Ltda
+    NetworkReason:
+      type: string
+      description: >-
+        Why the clearing network refused a payment, as a code of the network.
+        The platform keeps the code and does not read it.
+      pattern: '^[A-Z][A-Z0-9]*(_[A-Z0-9]+)*$'
+      maxLength: 64
+      examples:
+        - ACCOUNT_CLOSED
     Problem:
       type: object
       description: >-

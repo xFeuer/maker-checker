@@ -1,0 +1,327 @@
+openapi: 3.1.2
+
+info:
+  title: clearing-network
+  summary: The clearing network, as its simulator offers it to the platform.
+  description: >-
+    What payment-service calls at the clearing network. The network is outside
+    the platform (NET-1), and in this repository a simulator stands in for it
+    (ADR 0008). payment-service resolves an alias here, sends its outbound
+    payments and asks for their status. The network gives the final answer
+    for a payment by calling payment-service, and it delivers an inbound
+    payment the same way. The contract of payment-service has both
+    operations.
+  version: 0.1.0
+  license:
+    name: MIT
+    identifier: MIT
+
+servers:
+  - url: http://localhost:8082
+    description: The local stack, as `deploy/compose.yaml` starts it.
+
+tags:
+  - name: Status
+    description: Whether the simulator is up and which build it runs.
+  - name: Aliases
+    description: The names that the network resolves to a payee.
+  - name: Payments
+    description: The payments that a participant has sent to the network.
+
+paths:
+  /v1/status:
+    get:
+      operationId: getStatus
+      summary: Report the service name and version.
+      description: >-
+        The smoke-test target. A successful response proves that the simulator
+        is up and speaks this contract. Anybody may call it, without a token.
+      tags:
+        - Status
+      security: []
+      responses:
+        "200":
+          description: The simulator is up.
+          content:
+            application/json:
+              schema:
+                $ref: "../common/components.yaml#/components/schemas/ServiceStatus"
+              examples:
+                up:
+                  summary: A running simulator
+                  value:
+                    service: clearing-network
+                    version: 0.1.0
+        default:
+          $ref: "../common/components.yaml#/components/responses/Problem"
+  /v1/aliases/{alias}:
+    get:
+      operationId: resolveAlias
+      summary: Resolve an alias.
+      description: >-
+        Says who is behind an alias: the name of the payee and its participant
+        (NET-2). The alias is personal data, and it is in the path, as a key
+        is in the directory of Pix. Whoever logs this URL has to mask it. An
+        alias that the network does not know gets 404.
+      tags:
+        - Aliases
+      security:
+        - AccessToken:
+            - network:use
+      parameters:
+        - $ref: "#/components/parameters/AliasInPath"
+      responses:
+        "200":
+          description: The payee behind the alias.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Payee"
+              examples:
+                company:
+                  summary: A company at another participant
+                  value:
+                    name: Padaria Aurora Ltda
+                    participant: "87654321"
+        "401":
+          $ref: "../common/components.yaml#/components/responses/Unauthenticated"
+        "403":
+          $ref: "../common/components.yaml#/components/responses/InsufficientScope"
+        "404":
+          $ref: "../common/components.yaml#/components/responses/NotFound"
+        default:
+          $ref: "../common/components.yaml#/components/responses/Problem"
+  /v1/payments/{endToEndId}:
+    put:
+      operationId: sendPayment
+      summary: Send a payment.
+      description: >-
+        Hands a payment to the network, under the end-to-end ID that the
+        sender issued (PAY-6). The network takes it and gives its one final
+        answer later, by calling payment-service: settled, or refused with a
+        reason (NET-3). That call continues the trace of this request, so the
+        answer carries its correlation ID. The answer can come late or twice,
+        or not at all: then the status of the payment is the place to ask
+        (NET-4). A repeat with the same content changes nothing, and the
+        response shows the payment as it is now. A payment to an alias that
+        the network does not know is refused.
+      tags:
+        - Payments
+      security:
+        - AccessToken:
+            - network:use
+      parameters:
+        - $ref: "#/components/parameters/EndToEndIdInPath"
+      requestBody:
+        description: The amount, the alias of the payee and the account that pays.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewNetworkPayment"
+            examples:
+              twoHundred:
+                summary: A payment of 200 reais to an alias
+                value:
+                  amount:
+                    amount: "200.00"
+                    currency: BRL
+                  payeeAlias: pagamentos@aurora.example
+                  payerAccountNumber: "48213907"
+      responses:
+        "200":
+          description: The payment, taken now or by an earlier request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NetworkPayment"
+              examples:
+                pending:
+                  $ref: "#/components/examples/PendingNetworkPayment"
+        "400":
+          $ref: "../common/components.yaml#/components/responses/InvalidRequest"
+        "401":
+          $ref: "../common/components.yaml#/components/responses/Unauthenticated"
+        "403":
+          $ref: "../common/components.yaml#/components/responses/InsufficientScope"
+        "409":
+          description: The network has a payment with this end-to-end ID, with another content.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "../common/components.yaml#/components/schemas/Problem"
+              examples:
+                paymentExists:
+                  $ref: "../common/components.yaml#/components/examples/PaymentExists"
+        "422":
+          description: The network does not know the alias, and it takes no payment.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "../common/components.yaml#/components/schemas/Problem"
+              examples:
+                unknownAlias:
+                  $ref: "../common/components.yaml#/components/examples/UnknownAlias"
+        default:
+          $ref: "../common/components.yaml#/components/responses/Problem"
+    get:
+      operationId: getPayment
+      summary: Read the status of a payment.
+      description: >-
+        Shows a payment that the network has taken, with its state. This is
+        where payment-service asks when no answer has come (NET-4). A final
+        state here is the final answer of the network, also when the network
+        never sent it. A payment that the network never got does not exist
+        here.
+      tags:
+        - Payments
+      security:
+        - AccessToken:
+            - network:use
+      parameters:
+        - $ref: "#/components/parameters/EndToEndIdInPath"
+      responses:
+        "200":
+          description: The payment, as the network has it.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NetworkPayment"
+              examples:
+                pending:
+                  $ref: "#/components/examples/PendingNetworkPayment"
+                settled:
+                  $ref: "#/components/examples/SettledNetworkPayment"
+                refused:
+                  $ref: "#/components/examples/RefusedNetworkPayment"
+        "401":
+          $ref: "../common/components.yaml#/components/responses/Unauthenticated"
+        "403":
+          $ref: "../common/components.yaml#/components/responses/InsufficientScope"
+        "404":
+          $ref: "../common/components.yaml#/components/responses/NotFound"
+        default:
+          $ref: "../common/components.yaml#/components/responses/Problem"
+
+components:
+  securitySchemes:
+    AccessToken:
+      $ref: "../common/components.yaml#/components/securitySchemes/AccessToken"
+
+  parameters:
+    AliasInPath:
+      name: alias
+      in: path
+      required: true
+      description: The alias that the URL names.
+      schema:
+        $ref: "../common/components.yaml#/components/schemas/Alias"
+    EndToEndIdInPath:
+      name: endToEndId
+      in: path
+      required: true
+      description: The end-to-end ID of the payment that the URL names.
+      schema:
+        $ref: "../common/components.yaml#/components/schemas/EndToEndId"
+
+  examples:
+    PendingNetworkPayment:
+      summary: A payment that has no answer yet
+      description: The network has taken it. It answers on its own, or it holds the payment until a test gives the answer.
+      value:
+        endToEndId: E12345678202611251830a1B2c3D4e5F
+        amount:
+          amount: "200.00"
+          currency: BRL
+        payeeAlias: pagamentos@aurora.example
+        payerAccountNumber: "48213907"
+        state: PENDING
+    SettledNetworkPayment:
+      summary: A payment that the network has settled
+      description: The final answer is that the money has moved.
+      value:
+        endToEndId: E12345678202611251830a1B2c3D4e5F
+        amount:
+          amount: "200.00"
+          currency: BRL
+        payeeAlias: pagamentos@aurora.example
+        payerAccountNumber: "48213907"
+        state: SETTLED
+    RefusedNetworkPayment:
+      summary: A payment that the network has refused
+      description: A refused payment shows the reason of the network.
+      value:
+        endToEndId: E12345678202611251915h3J4k5L6m7N
+        amount:
+          amount: "200.00"
+          currency: BRL
+        payeeAlias: pagamentos@aurora.example
+        payerAccountNumber: "48213907"
+        state: REFUSED
+        reason: ACCOUNT_CLOSED
+
+  schemas:
+    Payee:
+      type: object
+      description: Who is behind an alias. The platform keeps both values with its payment (NET-2).
+      additionalProperties: false
+      required:
+        - name
+        - participant
+      properties:
+        name:
+          $ref: "../common/components.yaml#/components/schemas/PartyName"
+        participant:
+          $ref: "../common/components.yaml#/components/schemas/Participant"
+    NetworkPaymentState:
+      type: string
+      description: >-
+        Where a payment stands at the network. PENDING has no answer yet.
+        SETTLED and REFUSED are final: each is the one answer of the network
+        (NET-3).
+      enum:
+        - PENDING
+        - SETTLED
+        - REFUSED
+      examples:
+        - PENDING
+    NewNetworkPayment:
+      type: object
+      description: What a participant sends to hand a payment to the network.
+      additionalProperties: false
+      required:
+        - amount
+        - payeeAlias
+        - payerAccountNumber
+      properties:
+        amount:
+          $ref: "../common/components.yaml#/components/schemas/Money"
+        payeeAlias:
+          $ref: "../common/components.yaml#/components/schemas/Alias"
+        payerAccountNumber:
+          $ref: "../common/components.yaml#/components/schemas/AccountNumber"
+    NetworkPayment:
+      type: object
+      description: >-
+        A payment as the network has it: what the participant sent, and the
+        state. A refused payment also has the reason.
+      additionalProperties: false
+      required:
+        - endToEndId
+        - amount
+        - payeeAlias
+        - payerAccountNumber
+        - state
+      properties:
+        endToEndId:
+          $ref: "../common/components.yaml#/components/schemas/EndToEndId"
+        amount:
+          $ref: "../common/components.yaml#/components/schemas/Money"
+        payeeAlias:
+          $ref: "../common/components.yaml#/components/schemas/Alias"
+        payerAccountNumber:
+          $ref: "../common/components.yaml#/components/schemas/AccountNumber"
+        state:
+          $ref: "#/components/schemas/NetworkPaymentState"
+        reason:
+          $ref: "../common/components.yaml#/components/schemas/NetworkReason"
