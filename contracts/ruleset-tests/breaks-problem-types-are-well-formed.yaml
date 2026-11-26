@@ -1,0 +1,24 @@
+openapi: 3.1.2
+
+info:
+  title: Breaks problem-types-are-well-formed
+  version: 0.1.0
+
+paths:
+  /v1/things:
+    get:
+      operationId: listThings
+      responses:
+        "200":
+          description: The things.
+        default:
+          description: A problem. The type of its example is a URL of another host.
+          content:
+            application/problem+json:
+              examples:
+                elsewhere:
+                  summary: A problem with a type from elsewhere
+                  value:
+                    type: https://example.org/problems/thing-missing
+                    title: The thing is missing.
+                    status: 500

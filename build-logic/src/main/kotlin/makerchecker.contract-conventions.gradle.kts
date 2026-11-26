@@ -43,6 +43,10 @@ val unpackVacuum =
         destination = layout.buildDirectory.dir("vacuum")
     }
 
+// A project can have functions of its own for its rules: JavaScript files in functions/, which vacuum loads. The lint
+// passes the directory on, and the suite of the tests names it.
+val functionsDirectory = layout.projectDirectory.dir("functions")
+
 val lintSpecifications =
     tasks.register<SpecificationLint>("lintSpecifications") {
         group = LifecycleBasePlugin.VERIFICATION_GROUP
@@ -50,6 +54,9 @@ val lintSpecifications =
         vacuumHome = unpackVacuum.flatMap { it.destination }
         executable = platform.map { it.executable() }
         ruleset = layout.projectDirectory.file("ruleset.yaml")
+        if (functionsDirectory.asFile.isDirectory) {
+            functions = functionsDirectory
+        }
         // Each service has a directory with its API and, next to it, its testability hooks: ADR 0014.
         specifications.from(
             fileTree(layout.projectDirectory) {
@@ -76,7 +83,7 @@ val testRuleset =
         suite = layout.projectDirectory.file("ruleset-tests/suite.yaml")
         sources.from(
             fileTree(layout.projectDirectory) {
-                include("**/*.yaml")
+                include("**/*.yaml", "functions/*.js")
                 exclude("build/**")
             },
         )
@@ -90,7 +97,7 @@ tasks.check {
 
 spotless {
     format("misc") {
-        // The specifications lie one directory down.
-        target("*.md", "**/*.yaml")
+        // The specifications lie one directory down, and so do the functions of the rules.
+        target("*.md", "**/*.yaml", "functions/*.js")
     }
 }

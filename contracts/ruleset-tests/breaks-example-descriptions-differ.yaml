@@ -1,0 +1,26 @@
+openapi: 3.1.2
+
+info:
+  title: Breaks example-descriptions-differ
+  version: 0.1.0
+
+paths:
+  /v1/things:
+    get:
+      operationId: listThings
+      responses:
+        "200":
+          description: The things.
+        default:
+          description: A problem.
+
+components:
+  examples:
+    SmallThing:
+      summary: A small thing
+      description: A thing.
+      value: small
+    LargeThing:
+      summary: A large thing
+      description: A thing.
+      value: large

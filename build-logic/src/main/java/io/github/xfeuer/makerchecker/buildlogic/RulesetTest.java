@@ -51,7 +51,7 @@ public abstract class RulesetTest extends DefaultTask {
     @PathSensitive(PathSensitivity.RELATIVE)
     public abstract RegularFileProperty getSuite();
 
-    /** Every file that the suite can reach: the ruleset, the documents and what they refer to. */
+    /** Every file that the suite can reach: the ruleset and its functions, the documents and what they refer to. */
     @InputFiles
     @PathSensitive(PathSensitivity.RELATIVE)
     public abstract ConfigurableFileCollection getSources();

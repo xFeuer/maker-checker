@@ -1,0 +1,20 @@
+openapi: 3.1.2
+
+info:
+  title: Breaks tag-description
+  version: 0.1.0
+
+tags:
+  - name: Things
+
+paths:
+  /v1/things:
+    get:
+      operationId: listThings
+      tags:
+        - Things
+      responses:
+        "200":
+          description: The things. The tag above has no description.
+        default:
+          description: A problem.

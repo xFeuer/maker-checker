@@ -6,7 +6,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.List;
 import javax.inject.Inject;
 import org.gradle.api.DefaultTask;
@@ -20,6 +19,7 @@ import org.gradle.api.tasks.InputDirectory;
 import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Internal;
+import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
@@ -51,6 +51,15 @@ public abstract class SpecificationLint extends DefaultTask {
     @InputFile
     @PathSensitive(PathSensitivity.RELATIVE)
     public abstract RegularFileProperty getRuleset();
+
+    /**
+     * The functions of our own that a rule of the ruleset can name: a directory of JavaScript files, which vacuum
+     * loads. A project whose rules need no such function sets none.
+     */
+    @Optional
+    @InputDirectory
+    @PathSensitive(PathSensitivity.RELATIVE)
+    public abstract DirectoryProperty getFunctions();
 
     /** The specifications to lint. */
     @InputFiles
@@ -85,21 +94,17 @@ public abstract class SpecificationLint extends DefaultTask {
             throw new GradleException("There is no specification to lint under %s.".formatted(directory));
         }
 
-        List<String> command = new ArrayList<>();
-        command.add(new File(getVacuumHome().get().getAsFile(), getExecutable().get()).getAbsolutePath());
-        // The text format has one line for each finding and nothing else. The other flags keep vacuum from
-        // asking GitHub for a newer release and from decorating its output.
-        command.addAll(List.of("lint", "--format", "text", "--no-update-check", "--no-banner", "--no-style"));
-        // A finding of any level fails the run. The lowest level is the hint.
-        command.addAll(List.of("--fail-severity", "hint"));
-        command.addAll(
-                List.of("--ruleset", pathFrom(directory, getRuleset().get().getAsFile())));
-        command.addAll(specifications);
+        LintCommand command = new LintCommand(
+                new File(getVacuumHome().get().getAsFile(), getExecutable().get()).getAbsolutePath(),
+                pathFrom(directory, getRuleset().get().getAsFile()),
+                java.util.Optional.ofNullable(getFunctions().getAsFile().getOrNull())
+                        .map(functions -> pathFrom(directory, functions)),
+                specifications);
 
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         ByteArrayOutputStream errors = new ByteArrayOutputStream();
         ExecResult result = getExecOperations().exec(vacuum -> {
-            vacuum.commandLine(command);
+            vacuum.commandLine(command.arguments());
             vacuum.workingDir(directory.toFile());
             vacuum.setStandardOutput(output);
             vacuum.setErrorOutput(errors);

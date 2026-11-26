@@ -116,7 +116,7 @@ The build lints every specification with [vacuum](https://github.com/daveshanley
 ./gradlew :contracts:check
 ```
 
-- The rules are in [ruleset.yaml](ruleset.yaml): the rules that vacuum recommends, and rules of our own for the conventions.
+- The rules are in [ruleset.yaml](ruleset.yaml): the rules that vacuum recommends, one more rule of vacuum, and rules of our own for the conventions.
 - A specification is clean when vacuum reports nothing, at any level. One finding fails the build.
 - A rule that does not fit is switched off in the ruleset, with the reason next to it.
 - The findings of the last run are in `build/reports/vacuum/findings.txt`.
@@ -129,6 +129,8 @@ Gradle downloads vacuum from its GitHub release and checks the archive against a
 |---|---|
 | `error-responses-are-problems` | every 4xx, 5xx and `default` response is `application/problem+json` |
 | `operations-have-a-default-response` | every operation has a `default` response |
+| `problem-types-are-well-formed` | the type of a problem example is `about:blank`, or a URL of this repository that ends in a name in kebab-case |
+| `problem-statuses-match-their-response` | a problem example states the status code of its response |
 | `no-number-type` | no schema has the type `number` |
 | `post-takes-an-idempotency-key` | every `POST` takes a required `Idempotency-Key` header |
 | `no-patch` | no operation is a `PATCH` |
@@ -138,6 +140,13 @@ Gradle downloads vacuum from its GitHub release and checks the archive against a
 | `objects-are-closed` | every object has `additionalProperties: false` |
 | `no-null-type` | no schema has the type `null` |
 | `sensitive-marker-is-true` | `x-sensitive` is `true` wherever it appears |
+| `operations-have-a-summary-and-a-description` | every operation has a summary and a description |
+| `bodies-have-an-example` | every request body and every response body has an example |
+| `examples-have-a-summary` | every example of a body has a summary and a value |
+| `schemas-have-a-description` | every schema that states its type has a description: in a property, in a parameter and in a header |
+| `values-have-an-example` | every string, integer, boolean and array has an example: in a property, in a parameter and in a header |
+| `example-descriptions-differ` | no two examples of a specification have the same description |
+| `discriminators-map-their-one-of` | the mapping of a `discriminator` names exactly the schemas of the `oneOf` next to it |
 | `operations-state-who-may-call` | every operation has a `security` block of its own |
 | `security-names-a-scope` | an entry of a `security` block names a scheme and at least one scope |
 | `scopes-are-known` | every scope is on the list of the ruleset |
@@ -145,7 +154,19 @@ Gradle downloads vacuum from its GitHub release and checks the archive against a
 | `hooks-need-the-hooks-scope` | every operation under `/hooks` needs the scope `hooks:use` |
 | `only-hooks-take-the-hooks-scope` | no other operation takes the scope `hooks:use` |
 
-The rules of vacuum already check the kebab-case of a path, the camelCase of a property, the descriptions and the examples. They also check that a `security` block names a scheme that the specification has. No rule checks the name of a parameter, the mapping of a `discriminator`, or the conventions for identifiers, points in time and pages.
+The rules of vacuum already check the kebab-case of a path and the camelCase of a property. They also check that a `security` block names a scheme that the specification has. They check the descriptions and the examples only in part, and the rules of our own hold the rest.
+
+The ruleset switches on one rule of vacuum that its recommended set leaves out: `tag-description`, for a tag without a description.
+
+No rule checks the name of a parameter, or the conventions for identifiers, points in time and pages.
+
+### The functions of our own
+
+Three rules need a check that vacuum has no function for: `problem-statuses-match-their-response`, `example-descriptions-differ` and `discriminators-map-their-one-of`. Each has a function in [functions](functions/): a JavaScript file that vacuum runs by itself. The build needs no Node.js for it.
+
+- The lint passes the directory to vacuum with `--functions`, and the suite of the tests names it.
+- vacuum cannot lint with a rule whose function it did not load. So a function that is missing fails the build.
+- A function gets what its rule selects, and it returns one message for each finding.
 
 ### The tests of the rules
 
@@ -153,7 +174,7 @@ The rules of vacuum already check the kebab-case of a path, the camelCase of a p
 
 - `keeps-the-rules.yaml` is a specification that follows every convention of an API and uses shared parts. It is linted with every rule, and vacuum has to report nothing.
 - `keeps-the-rules-of-hooks.yaml` is the same for hooks. It uses the shared clock.
-- Each rule of our own has a document that breaks it, and vacuum has to report exactly that rule.
+- Each rule of our own has a document that breaks it, and vacuum has to report exactly that rule. The rule of vacuum that the ruleset switches on has one too.
 - A new rule comes with its document and its case in the suite.
 
 ### Raising vacuum

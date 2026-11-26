@@ -1,0 +1,55 @@
+openapi: 3.1.2
+
+info:
+  title: Breaks discriminators-map-their-one-of
+  version: 0.1.0
+
+paths:
+  /v1/things:
+    get:
+      operationId: listThings
+      responses:
+        "200":
+          description: The things.
+        default:
+          description: A problem.
+
+components:
+  schemas:
+    Thing:
+      description: A thing of two forms. The mapping names only one of them.
+      oneOf:
+        - $ref: "#/components/schemas/SmallThing"
+        - $ref: "#/components/schemas/LargeThing"
+      discriminator:
+        propertyName: size
+        mapping:
+          SMALL: "#/components/schemas/SmallThing"
+    SmallThing:
+      type: object
+      description: A small thing.
+      additionalProperties: false
+      required:
+        - size
+      properties:
+        size:
+          type: string
+          description: Says that the thing is small.
+          enum:
+            - SMALL
+          examples:
+            - SMALL
+    LargeThing:
+      type: object
+      description: A large thing.
+      additionalProperties: false
+      required:
+        - size
+      properties:
+        size:
+          type: string
+          description: Says that the thing is large.
+          enum:
+            - LARGE
+          examples:
+            - LARGE

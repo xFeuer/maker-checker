@@ -1,0 +1,26 @@
+openapi: 3.1.2
+
+info:
+  title: Breaks problem-statuses-match-their-response
+  version: 0.1.0
+
+paths:
+  /v1/things/{thingId}:
+    get:
+      operationId: getThing
+      responses:
+        "200":
+          description: The thing.
+        "404":
+          description: The thing does not exist. Its example states another status.
+          content:
+            application/problem+json:
+              examples:
+                conflict:
+                  summary: A problem with the status of another response
+                  value:
+                    type: about:blank
+                    title: Conflict
+                    status: 409
+        default:
+          description: A problem.
