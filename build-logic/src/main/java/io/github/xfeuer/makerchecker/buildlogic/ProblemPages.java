@@ -1,7 +1,6 @@
 package io.github.xfeuer.makerchecker.buildlogic;
 
 import groovy.json.JsonSlurper;
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -26,7 +25,6 @@ import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.VerificationException;
 import org.gradle.process.ExecOperations;
-import org.gradle.process.ExecResult;
 import org.gradle.work.DisableCachingByDefault;
 
 /**
@@ -120,29 +118,13 @@ public abstract class ProblemPages extends DefaultTask {
     /** vacuum bundles the specification into a file of its own, in the temporary directory of the task. */
     private File bundle(File specification, int number) {
         File bundle = new File(getTemporaryDir(), "bundle-%d.json".formatted(number));
-        BundleCommand command = new BundleCommand(
-                new File(getVacuumHome().get().getAsFile(), getExecutable().get()).getAbsolutePath(),
-                specification.getName(),
-                bundle.getAbsolutePath());
         // A bundle of an earlier run must not stand in for one that vacuum could not write.
         getFiles().delete(old -> old.delete(bundle));
-
-        ByteArrayOutputStream output = new ByteArrayOutputStream();
-        ExecResult run = getExecOperations().exec(vacuum -> {
-            vacuum.commandLine(command.arguments());
-            vacuum.workingDir(specification.getParentFile());
-            // Only a failure shows what vacuum wrote.
-            vacuum.setStandardOutput(output);
-            vacuum.setErrorOutput(output);
-            vacuum.setIgnoreExitValue(true);
-        });
-        if (run.getExitValue() != 0 || !bundle.isFile()) {
-            throw new GradleException("vacuum could not bundle %s. It ended with exit code %d and wrote:\n%s"
-                    .formatted(
-                            specification,
-                            run.getExitValue(),
-                            VacuumOutput.readable(output.toString(StandardCharsets.UTF_8))));
-        }
+        Bundling.bundle(
+                getExecOperations(),
+                new File(getVacuumHome().get().getAsFile(), getExecutable().get()),
+                specification,
+                bundle);
         return bundle;
     }
 }

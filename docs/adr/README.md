@@ -33,3 +33,4 @@ An accepted ADR is not edited to change its decision. A new ADR supersedes it.
 | [0016](0016-a-postgresql-database-for-each-service.md) | A PostgreSQL database for each service | Accepted |
 | [0017](0017-unit-tests-and-component-tests-for-a-service.md) | Unit tests and component tests for a service | Accepted |
 | [0018](0018-a-chassis-for-every-application.md) | A chassis for every application | Accepted |
+| [0019](0019-a-service-held-to-its-contract.md) | A service held to its contract | Accepted |

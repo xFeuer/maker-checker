@@ -3,7 +3,7 @@
 The system under test: an instant-payments platform on a double-entry ledger.
 
 - Its rules are in the [domain model](../docs/domain.md).
-- It implements the OpenAPI specifications in `contracts/`.
+- It implements the OpenAPI specifications in `contracts/`. A service carries its specification in its jar, and its tests hold it to that: see [ADR 0019](../docs/adr/0019-a-service-held-to-its-contract.md).
 - Its services carry their own unit and component tests.
 - Its services are built on the [chassis](../chassis/README.md), which keeps the conventions of the contracts for them. Every error response is a problem document.
 - Each service keeps its data in a PostgreSQL server of its own. See [ADR 0016](../docs/adr/0016-a-postgresql-database-for-each-service.md).
@@ -31,7 +31,7 @@ A service has two levels of tests. See [ADR 0017](../docs/adr/0017-unit-tests-an
 
 `./gradlew build` runs both.
 
-A component test is a client of the service. It calls over HTTP, and it sets up and reads through the API alone. All component tests of a service share one application and one database, so each test works on data of its own.
+A component test is a client of the service. It calls over HTTP, and it sets up and reads through the API alone. Its client checks every response against the contract of the service, so a response that the contract does not allow fails the test. All component tests of a service share one application and one database, so each test works on data of its own.
 
 ## Run a service
 

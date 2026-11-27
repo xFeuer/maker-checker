@@ -35,10 +35,28 @@ throw new InvalidRequestException(Violation.inBody("#/amount/amount", "The amoun
 
 What Spring and the server find themselves needs no code: an unknown path, a wrong method, a header that is missing. A status of 400 is an `invalid-request`. Every other status keeps its code, with the type `about:blank`.
 
+## The contract
+
+An application carries its specification: the build puts the bundle of `contracts/<application>/openapi.yaml` into its jar, as `contracts/openapi.json`. `Contract` reads it. See [ADR 0019](../docs/adr/0019-a-service-held-to-its-contract.md).
+
+The test fixtures of the chassis hold an application to that contract. A service takes them for its component tests:
+
+```kotlin
+componentTestImplementation(testFixtures(project(":chassis")))
+```
+
+| What is held | By |
+|---|---|
+| Every response that a test receives: status, media type, headers, body | `ContractCheck`, which a test class imports. The client of the test then checks by itself. |
+| The operations: the application maps every one of the contract, and no other | `ContractAssertions.assertOperations` |
+| The types of problem: each has the status and the title of the contract | `ContractAssertions.assertProblemTypes` |
+
+The two assertions take a list of what the contract has and the application does not build yet. The change that builds an entry takes it off the list.
+
 ## Tests
 
 ```
 ./gradlew :chassis:test
 ```
 
-The tests run a small application on top of the chassis, on a real port, and send it every kind of error. They need the JVM alone.
+The tests run a small application on top of the chassis, on a real port, and send it every kind of error. The application has a contract of its own, in the resources of the tests. The tests need the JVM alone.

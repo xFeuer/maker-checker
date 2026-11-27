@@ -15,8 +15,8 @@ import org.springframework.test.web.servlet.client.assertj.RestTestClientRespons
 /**
  * The service answers an error with a problem document, also where no code of its own runs. See ADR 0010.
  *
- * <p>The chassis does the work and has the tests for every kind of error. These three show that the service has
- * it, with one error for each way out of an application: Spring MVC, the error page of the server, and Tomcat.
+ * <p>The chassis does the work and has the tests for every kind of error. These show that the service has it, with
+ * one error for each way out of an application: Spring MVC, the error page of the server, and Tomcat.
  */
 @ComponentTest
 class ProblemsTest {
@@ -28,6 +28,18 @@ class ProblemsTest {
 
         assertProblem(response, HttpStatus.NOT_FOUND, """
             {"type": "about:blank", "title": "Not Found", "status": 404}
+            """);
+    }
+
+    @Test
+    void answersAnOperationOfTheContractWithAProblemThatTheContractAllows(@Autowired RestTestClient client) {
+        // The status exists, but not as text. The contract has no 406 for it, so its default response holds this
+        // one: the client checks the problem against the schema of the contract.
+        RestTestClientResponse response = RestTestClientResponse.from(
+                client.get().uri("/v1/status").accept(MediaType.TEXT_PLAIN).exchange());
+
+        assertProblem(response, HttpStatus.NOT_ACCEPTABLE, """
+            {"type": "about:blank", "title": "Not Acceptable", "status": 406}
             """);
     }
 
