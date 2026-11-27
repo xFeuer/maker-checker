@@ -3,6 +3,7 @@ allure-java = "3.1.1"
 allure-report = "2.46.2"
 assertj = "3.27.7"
 jackson = "3.3.0"
+json-schema-validator = "3.0.9"
 junit = "6.1.3"
 playwright = "1.65.1"
 slf4j = "2.0.20"
@@ -18,6 +19,7 @@ allure-java-commons = { module = "io.qameta.allure:allure-java-commons" }
 allure-jupiter = { module = "io.qameta.allure:allure-jupiter" }
 assertj-core = { module = "org.assertj:assertj-core", version.ref = "assertj" }
 jackson-databind = { module = "tools.jackson.core:jackson-databind", version.ref = "jackson" }
+json-schema-validator = { module = "com.networknt:json-schema-validator", version.ref = "json-schema-validator" }
 junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
 junit-jupiter-api = { module = "org.junit.jupiter:junit-jupiter-api" }

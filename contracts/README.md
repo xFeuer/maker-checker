@@ -210,6 +210,8 @@ Dependabot does not follow GitHub releases, so this is done by hand.
 
 ## The API reference
 
+The build bundles every specification into one JSON document, `build/bundles/<service>/openapi.json`. A service carries the bundle of its own, and its tests hold it to that document. See [ADR 0019](../docs/adr/0019-a-service-held-to-its-contract.md).
+
 The build renders every specification as pages, and it writes a page for each problem type. See [ADR 0015](../docs/adr/0015-an-api-reference-rendered-by-vacuum-next-to-the-report.md).
 
 ```

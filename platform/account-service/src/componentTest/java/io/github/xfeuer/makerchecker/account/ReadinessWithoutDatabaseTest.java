@@ -2,6 +2,7 @@ package io.github.xfeuer.makerchecker.account;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.github.xfeuer.makerchecker.chassis.contract.testing.ContractCheck;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.ServerSocket;
@@ -10,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureRestTestClient;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -23,6 +25,7 @@ import org.springframework.test.web.servlet.client.assertj.RestTestClientRespons
  */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureRestTestClient
+@Import(ContractCheck.class)
 class ReadinessWithoutDatabaseTest {
 
     @DynamicPropertySource

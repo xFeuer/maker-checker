@@ -1,5 +1,6 @@
 package io.github.xfeuer.makerchecker.account;
 
+import io.github.xfeuer.makerchecker.chassis.contract.testing.ContractCheck;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -13,7 +14,8 @@ import org.springframework.context.annotation.Import;
  * A component test: the whole service on a real port, with its database in a container. See ADR 0017.
  *
  * <p>The test is a client of the service. It gets a {@code RestTestClient} that calls the running server, and it
- * sets up and reads through the API alone.
+ * sets up and reads through the API alone. The client holds every response to the contract of the service: see
+ * ADR 0019.
  *
  * <p>Every class with this annotation shares one application and one database, so no test may count on finding
  * either one empty.
@@ -22,5 +24,5 @@ import org.springframework.context.annotation.Import;
 @Retention(RetentionPolicy.RUNTIME)
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
 @AutoConfigureRestTestClient
-@Import(DatabaseContainer.class)
+@Import({DatabaseContainer.class, ContractCheck.class})
 @interface ComponentTest {}

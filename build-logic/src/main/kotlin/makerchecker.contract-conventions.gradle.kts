@@ -1,6 +1,7 @@
 import io.github.xfeuer.makerchecker.buildlogic.ApiReference
 import io.github.xfeuer.makerchecker.buildlogic.ProblemPages
 import io.github.xfeuer.makerchecker.buildlogic.RulesetTest
+import io.github.xfeuer.makerchecker.buildlogic.SpecificationBundles
 import io.github.xfeuer.makerchecker.buildlogic.SpecificationLint
 import io.github.xfeuer.makerchecker.buildlogic.VacuumPlatform
 import io.github.xfeuer.makerchecker.buildlogic.VerifiedUnpack
@@ -15,6 +16,8 @@ plugins {
 //
 // ADR 0015: vacuum also renders the specifications as an API reference, and the build writes a page for each of
 // their problem types. assemble does both.
+//
+// ADR 0019: vacuum bundles each specification into one JSON document, for the application that implements it.
 
 val libs = the<VersionCatalogsExtension>().named("libs")
 val vacuumVersion = libs.findVersion("vacuum").get().requiredVersion
@@ -141,8 +144,29 @@ val problemPages =
         pages = site.map { it.dir("problems") }
     }
 
+val bundleSpecifications =
+    tasks.register<SpecificationBundles>("bundleSpecifications") {
+        group = LifecycleBasePlugin.BUILD_GROUP
+        description = "Bundles every specification into one JSON document, for the application that implements it."
+        vacuumHome = unpackVacuum.flatMap { it.destination }
+        executable = platform.map { it.executable() }
+        specifications.from(
+            fileTree(layout.projectDirectory) {
+                include("*/openapi.yaml", "*/hooks.yaml")
+                exclude("build/**")
+            },
+        )
+        sources.from(
+            fileTree(layout.projectDirectory) {
+                include("**/*.yaml")
+                exclude("build/**")
+            },
+        )
+        bundles = layout.buildDirectory.dir("bundles")
+    }
+
 tasks.assemble {
-    dependsOn(renderReference, problemPages)
+    dependsOn(renderReference, problemPages, bundleSpecifications)
 }
 
 // The root project puts both directories into the site that GitHub Pages serves. It asks this project for them by
@@ -152,6 +176,11 @@ configurations.consumable("apiReference") {
 }
 configurations.consumable("problemTypes") {
     outgoing.artifact(problemPages.flatMap { it.pages })
+}
+
+// An application asks for the bundles in the same way, and takes the ones of its own directory.
+configurations.consumable("specificationBundles") {
+    outgoing.artifact(bundleSpecifications.flatMap { it.bundles })
 }
 
 spotless {

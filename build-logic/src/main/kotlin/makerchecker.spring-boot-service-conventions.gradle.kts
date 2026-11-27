@@ -25,6 +25,28 @@ tasks.jar {
     enabled = false
 }
 
+// ADR 0019: a service carries its specification, as the bundles that the contracts project makes of it. The
+// directory of the specification has the name of the service, so contracts/account-service/openapi.yaml becomes
+// contracts/openapi.json in the jar of account-service.
+val specificationBundles = configurations.dependencyScope("specificationBundles")
+val specificationBundleFiles =
+    configurations.resolvable("specificationBundleFiles") {
+        extendsFrom(specificationBundles.get())
+    }
+
+dependencies {
+    specificationBundles(project(mapOf("path" to ":contracts", "configuration" to "specificationBundles")))
+}
+
+tasks.processResources {
+    val service = project.name
+    from(specificationBundleFiles) {
+        include("$service/*.json")
+        eachFile { relativePath = RelativePath(true, "contracts", name) }
+        includeEmptyDirs = false
+    }
+}
+
 // ADR 0016: the stack and the component tests run the same PostgreSQL, and the Compose file is the one place that
 // names it.
 val databaseImage =

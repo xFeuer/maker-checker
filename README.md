@@ -40,7 +40,7 @@ One rule holds the design together: `automation/` never imports code from `platf
 | Concern | Choice |
 |---|---|
 | Platform | Java 25, Spring Boot 4, PostgreSQL 18 |
-| Contracts | OpenAPI 3.1, linted and rendered by vacuum |
+| Contracts | OpenAPI 3.1, linted, rendered and bundled by vacuum. A JSON Schema validator holds a service to them. |
 | Automation | Playwright for Java, JUnit 6, Cucumber |
 | Report | Allure |
 | Build | Gradle 9, Kotlin DSL, convention plugins, version catalog |
@@ -61,6 +61,8 @@ Docker is for the component tests of the services. Each one runs a whole service
 The build also lints the specifications in `contracts/` with vacuum. Gradle downloads it, so there is nothing to install. See [ADR 0009](docs/adr/0009-openapi-3-1-contracts-linted-by-vacuum-in-the-build.md).
 
 vacuum renders the specifications too. The API reference is in `contracts/build/site/api/index.html`, and the pages of the problem types are next to it. See [ADR 0015](docs/adr/0015-an-api-reference-rendered-by-vacuum-next-to-the-report.md).
+
+vacuum also bundles each specification into one document, and a service carries the bundle of its own. The component tests of a service check every response against it. See [ADR 0019](docs/adr/0019-a-service-held-to-its-contract.md).
 
 ## Run the system tests
 

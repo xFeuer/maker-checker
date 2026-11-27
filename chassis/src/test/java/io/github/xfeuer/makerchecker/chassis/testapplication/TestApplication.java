@@ -72,6 +72,12 @@ class TestApplication {
             return Map.of("answer", "yes");
         }
 
+        @GetMapping("/breaks-the-contract")
+        Map<String, String> breaksTheContract() {
+            // The contract of the test application asks for a header here, and it has no kettle in the body.
+            return Map.of("answer", "yes", "kettle", "hot");
+        }
+
         @GetMapping("/refuses")
         void refuses() {
             throw new ProblemException(TeaProblem.TEAPOT_EMPTY);

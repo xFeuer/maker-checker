@@ -1,0 +1,110 @@
+{
+  "openapi": "3.1.2",
+  "info": {"title": "The test application of the chassis", "version": "1"},
+  "paths": {
+    "/works": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "An answer.",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Answer"}}}
+          },
+          "default": {"$comment": "As every operation of a real contract.", "description": "A problem.", "content": {"application/problem+json": {"schema": {"$ref": "#/components/schemas/Problem"}}}}
+        }
+      }
+    },
+    "/breaks-the-contract": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "An answer, with a header that says how hot the kettle is.",
+            "headers": {"X-Kettle": {"required": true, "schema": {"type": "string", "enum": ["warm", "hot"]}}},
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Answer"}}}
+          }
+        }
+      }
+    },
+    "/cups/{number}": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "The cups.",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Cups"}}}
+          },
+          "204": {"description": "No cups, and no body."},
+          "default": {"description": "A problem.", "content": {"application/problem+json": {"schema": {"$ref": "#/components/schemas/Problem"}}}}
+        }
+      }
+    },
+    "/cups/latest": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "The cup that was poured last.",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Cup"}}}
+          }
+        }
+      }
+    },
+    "/orders": {
+      "post": {
+        "responses": {
+          "422": {
+            "description": "The teapot is empty.",
+            "content": {
+              "application/problem+json": {
+                "schema": {"$ref": "#/components/schemas/Problem"},
+                "examples": {
+                  "teapotEmpty": {
+                    "value": {
+                      "type": "https://xfeuer.github.io/maker-checker/problems/teapot-empty",
+                      "title": "The teapot is empty.",
+                      "status": 422
+                    }
+                  },
+                  "blank": {"value": {"type": "about:blank", "title": "Not Found", "status": 404}}
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Answer": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["answer"],
+        "properties": {"answer": {"type": "string"}}
+      },
+      "Cups": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["cups"],
+        "properties": {"cups": {"type": "integer"}}
+      },
+      "Cup": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["cupId", "pouredAt"],
+        "properties": {
+          "cupId": {"type": "string", "format": "uuid"},
+          "pouredAt": {"type": "string", "format": "date-time"}
+        }
+      },
+      "Problem": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["type", "title", "status"],
+        "properties": {
+          "type": {"type": "string", "format": "uri"},
+          "title": {"type": "string"},
+          "status": {"type": "integer"},
+          "detail": {"type": "string"}
+        }
+      }
+    }
+  }
+}
